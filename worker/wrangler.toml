@@ -1,0 +1,12 @@
+name = "ai-academy-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Public, non-secret settings. Change ALLOWED_ORIGIN to your GitHub Pages ORIGIN
+# (scheme + host only, NO path): https://YOUR-USER.github.io
+[vars]
+ALLOWED_ORIGIN = "https://YOUR-USER.github.io"
+
+# SECRETS are NOT written here. Add them later with:
+#   npx wrangler secret put OPENROUTER_API_KEY
+# (they are not used yet: AI is disabled in this milestone)

@@ -5,3 +5,4 @@ dist/
 !env.example
 .dev.vars
 .wrangler/
+test/.build/

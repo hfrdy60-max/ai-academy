@@ -1,15 +1,32 @@
 import { Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
+import Courses from "./pages/Courses";
+import CreateCourse from "./pages/CreateCourse";
+import CourseDetail from "./pages/CourseDetail";
+import LessonPage from "./pages/LessonPage";
+import EditCourse from "./pages/EditCourse";
+import Teacher from "./pages/Teacher";
+import Settings from "./pages/Settings";
 import ComingSoon from "./pages/ComingSoon";
 import { NAV } from "./nav";
+
+// Sections that already have a real page. Everything else shows the honest "not built yet" page.
+const BUILT = new Set(["/", "/courses", "/create", "/teacher", "/settings"]);
 
 export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
-        {NAV.filter(n => n.path !== "/").map(n => <Route key={n.path} path={n.path} element={<ComingSoon />} />)}
+        <Route path="/courses" element={<Courses />} />
+        <Route path="/courses/:courseId" element={<CourseDetail />} />
+        <Route path="/courses/:courseId/lessons/:lessonId" element={<LessonPage />} />
+        <Route path="/courses/:courseId/edit" element={<EditCourse />} />
+        <Route path="/create" element={<CreateCourse />} />
+        <Route path="/teacher" element={<Teacher />} />
+        <Route path="/settings" element={<Settings />} />
+        {NAV.filter(n => !BUILT.has(n.path)).map(n => <Route key={n.path} path={n.path} element={<ComingSoon />} />)}
         <Route path="*" element={<ComingSoon />} />
       </Route>
     </Routes>

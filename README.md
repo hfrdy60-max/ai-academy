@@ -2,7 +2,7 @@
 
 پلتفرم آموزشی فارسی (راست‌به‌چپ): دوره بسازید، محتوای هر درس را با هوش مصنوعی تولید و ویرایش کنید، با معلم هوشمند گفتگو کنید و پیشرفت‌تان را ببینید.
 
-> **وضعیت صادقانه:** کد کامل است و با آزمایش خودکار (مرورگر واقعی + Worker واقعی + سرور جعلی OpenRouter) بررسی شده. اما **هنوز با OpenRouter، Cloudflare و GitHub واقعی آزمایش نشده** و `npm run build` واقعی هم اجرا نشده است (محیط توسعه شبکه نداشت). اولین اجرای شما این‌ها را تأیید می‌کند.
+> **وضعیت فنی:** ساخت فرانت‌اند، بررسی TypeScript بک‌اند و ۵۰ آزمون Worker در GitHub Actions با موفقیت اجرا شده‌اند. اتصال واقعی به حساب OpenRouter و استقرار واقعی Cloudflare هنوز نیازمند تنظیم کلیدها و حساب مالک پروژه است؛ این موارد را نباید با تست خودکار اشتباه گرفت.
 
 ## چه کارهایی می‌کند
 - ساخت، ویرایش (فصل‌ها و درس‌ها)، حذف و جست‌وجوی دوره‌ها؛ سطح مبتدی/متوسط/پیشرفته
@@ -18,64 +18,59 @@
 
 ---
 
-## اجرای محلی (روی کامپیوتر خودتان)
-نیاز: Node.js نسخه ۲۰.۱۹ یا بالاتر (nodejs.org).
+## اجرای محلی
+نیاز: Node.js نسخه ۲۰.۱۹ یا بالاتر.
 
+فرانت‌اند:
 ```
 cd frontend
-npm install
-npm run build        # بررسی TypeScript + ساخت نسخه نهایی
-npm run dev          # اجرای محلی، آدرس: http://localhost:5173
+npm ci
+npm run build
+npm run dev
 ```
-پس از اولین `npm install`، فایل `frontend/package-lock.json` ساخته می‌شود؛ **آن را هم commit کنید**.
 
-برای آزمایش Worker (آزمون خودکار با سرور جعلی، بدون نیاز به کلید):
+Worker:
 ```
 cd worker
 npm install
+npm run typecheck
 npm test
 ```
 
+فایل قفل وابستگی فرانت‌اند (`frontend/package-lock.json`) در مخزن نگهداری می‌شود. برای Worker فعلاً از `npm install` استفاده می‌شود.
+
 ---
 
-## راهنمای استقرار (قدم‌به‌قدم)
+## راهنمای استقرار
 
-### قدم ۱ تا ۳: گیت‌هاب و GitHub Pages
-1. در github.com یک مخزن جدید بسازید (مثلاً `ai-academy`). **Public** باشد.
-2. پوشه پروژه را با برنامه **GitHub Desktop** (Add local repository ← Publish repository) یا با git بفرستید.
-3. در مخزن: **Settings ← Pages ← Source = GitHub Actions**. بعد در تب **Actions** گزینه «Deploy frontend to GitHub Pages» را اجرا کنید (Run workflow). آدرس سایت: `https://USERNAME.github.io/ai-academy/`
+### GitHub Pages
+در مخزن، از مسیر **Settings ← Pages**، گزینه **GitHub Actions** را به‌عنوان منبع انتشار انتخاب کنید. گردش‌کار `Deploy frontend to GitHub Pages` بعد از ادغام کد روی شاخه `main` اجرا می‌شود.
 
-### قدم ۴ تا ۶: Worker (بک‌اند)
-4. حساب رایگان cloudflare.com بسازید. در ترمینال، پوشه `worker`:
+### Worker (بک‌اند)
+1. در Cloudflare حساب بسازید و از پوشه `worker` اجرا کنید:
    ```
    npm install
    npx wrangler login
    ```
-5. فایل `worker/wrangler.toml` را باز کنید و `ALLOWED_ORIGIN` را به **آدرس اصلی** سایتتان بگذارید: `https://USERNAME.github.io` (بدون `/ai-academy` و بدون `/` آخر). سپس راز‌ها را بسازید:
-   - یک توکن تصادفی بسازید: `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"` و آن را نگه دارید.
-   - ```
-     npx wrangler secret put ACCESS_TOKEN        # توکن بالا را بچسبانید
-     npx wrangler secret put OPENROUTER_API_KEY  # کلید خود را از openrouter.ai بچسبانید
-     ```
-   (کلیدها را هرگز داخل فایل یا گیت‌هاب ننویسید.)
-6. استقرار:
+2. در `worker/wrangler.toml` مقدار `ALLOWED_ORIGIN` را با مبدأ واقعی GitHub Pages جایگزین کنید؛ فقط دامنه، بدون مسیر مخزن و بدون اسلش پایانی.
+3. رازها را به‌صورت امن در Cloudflare ثبت کنید:
+   ```
+   npx wrangler secret put ACCESS_TOKEN
+   npx wrangler secret put OPENROUTER_API_KEY
+   ```
+   کلیدها را در فایل‌ها یا GitHub قرار ندهید.
+4. استقرار:
    ```
    npx wrangler deploy
    ```
-   آدرس چاپ‌شده مثل `https://ai-academy-api.xxx.workers.dev` را کپی کنید.
-
-### قدم ۷: اتصال برنامه به Worker
-در سایت: **تنظیمات ← اتصال هوش مصنوعی**؛ آدرس Worker و همان توکن (قدم ۵) را وارد کنید ← **ذخیره** ← **تست اتصال**. باید بنویسد «اتصال برقرار است».
-
-### قدم ۸: آزمایش نهایی
-یک دوره با گزینه «طراحی خودکار با هوش مصنوعی» بسازید ← یک درس را باز کنید ← «تولید محتوا» ← یک سؤال از معلم بپرسید. اگر خطا دیدید، متن فارسی خطا علت را می‌گوید (توکن اشتباه، کلید ثبت‌نشده، اینترنت و...).
+5. در برنامه، از بخش **تنظیمات ← اتصال هوش مصنوعی**، آدرس Worker و همان توکن دسترسی را ذخیره و اتصال را آزمایش کنید.
 
 ### نکات هزینه و ایمنی
-- هر تولید درس/گفتگو توکن مصرف می‌کند؛ در OpenRouter برای کلید **سقف هزینه** بگذارید. مصرف توکن (طبق گزارش سرویس) در تنظیمات نشان داده می‌شود.
-- هر کس توکن دسترسی را داشته باشد از اعتبار شما استفاده می‌کند؛ آن را پخش نکنید.
-- برای نام مدل (مثلاً مدل‌های ارزان‌تر برای گفتگو) به کامنت‌های `wrangler.toml` نگاه کنید.
+- هر تولید درس یا گفت‌وگو ممکن است توکن مصرف کند؛ برای کلید OpenRouter سقف هزینه تنظیم کنید.
+- هر کس توکن دسترسی را داشته باشد می‌تواند از سرویس شما استفاده کند؛ آن را محرمانه نگه دارید.
+- کلید OpenRouter فقط باید در Secretهای Worker ذخیره شود و نباید به فرانت‌اند برسد.
 
 ## ساختار پروژه
-- `frontend/` برنامه React؛ `database/` (IndexedDB)، `services/` (منطق و ارتباط با Worker)، `pages/`، `components/`
-- `worker/` بک‌اند: `providers/` (OpenRouter)، `agents/` (پرامپت‌ها و اعتبارسنجی)، `security/`
-- `worker/test/` آزمون خودکار Worker (۵۰ آزمون)
+- `frontend/` برنامه React؛ `database/` (IndexedDB)، `services/`، `pages/` و `components/`
+- `worker/` بک‌اند: `providers/`، `agents/` و `security/`
+- `worker/test/` آزمون‌های خودکار Worker

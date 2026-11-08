@@ -2,11 +2,16 @@ name = "ai-academy-api"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
-# Public, non-secret settings. Change ALLOWED_ORIGIN to your GitHub Pages ORIGIN
-# (scheme + host only, NO path): https://YOUR-USER.github.io
+# Public, NON-secret settings. Secrets are NOT written here (see README, step 5).
 [vars]
+# Your GitHub Pages ORIGIN: scheme + host only, NO path, no trailing slash.
 ALLOWED_ORIGIN = "https://YOUR-USER.github.io"
-
-# SECRETS are NOT written here. Add them later with:
-#   npx wrangler secret put OPENROUTER_API_KEY
-# (they are not used yet: AI is disabled in this milestone)
+# Max AI requests per minute per visitor IP (per Worker instance).
+RATE_LIMIT_PER_MINUTE = "30"
+# Optional: choose OpenRouter models (look up exact ids at https://openrouter.ai/models).
+# Different tasks can use different models; unset = MODEL_DEFAULT.
+# MODEL_DEFAULT = "openai/gpt-4o-mini"
+# MODEL_LESSON  = "..."
+# MODEL_CHAT    = "..."
+# MODEL_CHECK   = "..."
+# MODEL_OUTLINE = "..."

@@ -1,6 +1,7 @@
 export type IconName =
   | "home" | "book" | "sparkles" | "chat" | "gamepad" | "exam"
-  | "chart" | "settings" | "more" | "sun" | "moon" | "cap" | "target" | "trophy";
+  | "chart" | "settings" | "more" | "sun" | "moon" | "cap" | "target" | "trophy" | "plus" | "trash" | "play" | "check" | "back"
+  | "edit" | "refresh" | "send" | "up" | "down" | "download" | "upload" | "search";
 
 export interface NavItem {
   path: string;

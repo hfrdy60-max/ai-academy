@@ -67,7 +67,7 @@ export default function Layout() {
           </button>
         </header>
         <main id="main" ref={mainRef} tabIndex={-1} className="mx-auto w-full max-w-5xl flex-1 p-4 pb-28 outline-none md:p-8 md:pb-8">
-          <Outlet />
+          <div key={pathname} className="page-enter"><Outlet /></div>
         </main>
       </div>
 

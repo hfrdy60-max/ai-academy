@@ -16,6 +16,19 @@ const PATHS: Record<IconName, ReactNode> = {
   moon: <><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z" /></>,
   cap: <><path d="M22 10 12 5 2 10l10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></>,
   target: <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></>,
+  plus: <><path d="M12 5v14M5 12h14" /></>,
+  trash: <><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" /></>,
+  play: <><path d="m6 3 14 9-14 9z" /></>,
+  check: <><path d="m5 13 4 4L19 7" /></>,
+  edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>,
+  refresh: <><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></>,
+  send: <><path d="m22 2-7 20-4-9-9-4z" /><path d="M22 2 11 13" /></>,
+  up: <><path d="m6 15 6-6 6 6" /></>,
+  down: <><path d="m6 9 6 6 6-6" /></>,
+  download: <><path d="M12 3v12m0 0-4-4m4 4 4-4" /><path d="M4 21h16" /></>,
+  upload: <><path d="M12 15V3m0 0-4 4m4-4 4 4" /><path d="M4 21h16" /></>,
+  search: <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></>,
+  back: <><path d="m9 18 6-6-6-6" /></>,
   trophy: <><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16M10 14.7V17M14 14.7V17" /><path d="M18 2H6v7a6 6 0 0 0 12 0z" /></>
 };
 

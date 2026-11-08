@@ -10,7 +10,7 @@
     "test": "esbuild test/entry.ts --bundle --format=esm --platform=neutral --outfile=test/.build/worker.mjs --log-level=warning && node test/run.mjs"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.0.0",
+    "@cloudflare/workers-types": "^5.20261108.1",
     "typescript": "~5.9.0",
     "wrangler": "^4.0.0",
     "esbuild": "^0.25.0"

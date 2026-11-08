@@ -5,7 +5,7 @@ compatibility_date = "2025-01-01"
 # Public, NON-secret settings. Secrets are NOT written here (see README, step 5).
 [vars]
 # Your GitHub Pages ORIGIN: scheme + host only, NO path, no trailing slash.
-ALLOWED_ORIGIN = "https://YOUR-USER.github.io"
+ALLOWED_ORIGIN = "https://hfrdy60-max.github.io"
 # Max AI requests per minute per visitor IP (per Worker instance).
 RATE_LIMIT_PER_MINUTE = "30"
 # Optional: choose OpenRouter models (look up exact ids at https://openrouter.ai/models).

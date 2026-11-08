@@ -1,0 +1,53 @@
+name: Prepare ZIP 3 import branch
+
+on:
+  push:
+    branches: [zip3-import]
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: zip3-import
+          fetch-depth: 0
+
+      - name: Validate and extract uploaded source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f ai-academy-complete.zip
+          if unzip -Z1 ai-academy-complete.zip | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+            echo "Unsafe path detected in archive"
+            exit 1
+          fi
+          mkdir -p /tmp/zip3
+          unzip -q ai-academy-complete.zip -d /tmp/zip3
+          test -d /tmp/zip3/ai-academy
+          test -f /tmp/zip3/ai-academy/frontend/package.json
+          test -f /tmp/zip3/ai-academy/worker/package.json
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='frontend/package-lock.json' \
+            --exclude='*.zip' \
+            /tmp/zip3/ai-academy/ ./
+
+      - name: Commit extracted source on a separate branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c zip3-import-ready
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No extracted source changes to commit"
+            exit 0
+          fi
+          git commit -m "Import reviewed source from ZIP 3"
+          git push --force-with-lease origin zip3-import-ready

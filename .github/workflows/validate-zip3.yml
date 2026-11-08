@@ -3,6 +3,8 @@ name: Validate ZIP 3 source
 on:
   push:
     branches: [zip3-import-ready]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read

@@ -167,6 +167,14 @@ const fakeDb = {
 
 // 11a repository boundary validation
 dbCalls.length = 0;
+let whitespaceOwnerRejected = false;
+try { await listUserCourses(fakeDb, "                "); } catch (error) { whitespaceOwnerRejected = error.message === "invalid_user_id"; }
+t("D1 repository rejects whitespace-only owner IDs before database access", whitespaceOwnerRejected && dbCalls.length === 0);
+let controlOwnerRejected = false;
+try { await listUserChats(fakeDb, "user_123456789012345\\u0000"); } catch (error) { controlOwnerRejected = error.message === "invalid_user_id"; }
+t("D1 repository rejects control characters in owner IDs before database access", controlOwnerRejected && dbCalls.length === 0);
+
+dbCalls.length = 0;
 let invalidCourseIdRejected = false;
 try { await putUserCourse(fakeDb, "user_1234567890123456", "", {}, 10); } catch (error) { invalidCourseIdRejected = error.message === "invalid_record_id"; }
 t("D1 course write rejects an empty record ID before database access", invalidCourseIdRejected && dbCalls.length === 0);

@@ -1,5 +1,5 @@
 import http from "node:http";
-import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches } from "./.build/worker.mjs";
+import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats } from "./.build/worker.mjs";
 
 // ---- fake "OpenRouter" upstream (tests OUR adapter; it is NOT the real service) ----
 let mode = "ok", calls = 0; const seen = [];

@@ -91,9 +91,17 @@ export default function Dashboard() {
         </ul>
       </section>
 
-      <section className="card" aria-labelledby="achievements">
-        <h2 id="achievements" className="font-bold">دستاوردها</h2>
-        <p className="muted mt-2 text-sm">{stats.totalCompleted > 0 ? `تا امروز ${fa(stats.totalCompleted)} درس را تکمیل کرده‌اید.` : "با تکمیل درس‌ها امتیاز می‌گیرید. نشان‌ها در نسخه‌های بعدی اضافه می‌شوند."}</p>
+      <section className="card space-y-3" aria-labelledby="achievements">
+        <div className="flex items-center justify-between gap-2">
+          <h2 id="achievements" className="font-bold">دستاوردها</h2>
+          <Link to="/progress" className="text-sm font-bold text-indigo-700 hover:underline dark:text-indigo-300">گزارش کامل</Link>
+        </div>
+        <p className="muted text-sm">{stats.totalCompleted > 0 ? `تا امروز ${fa(stats.totalCompleted)} درس را تکمیل کرده‌اید و ${fa(stats.xp)} امتیاز گرفته‌اید.` : "با تکمیل درس‌ها امتیاز می‌گیرید و نشان‌های یادگیری آزاد می‌شوند."}</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <Link to="/exams" className="btn btn-ghost justify-center">شرکت در آزمون</Link>
+          <Link to="/games" className="btn btn-ghost justify-center">بازی آموزشی</Link>
+          <Link to="/progress" className="btn btn-ghost col-span-2 justify-center sm:col-span-1">مشاهده پیشرفت</Link>
+        </div>
       </section>
     </div>
   );

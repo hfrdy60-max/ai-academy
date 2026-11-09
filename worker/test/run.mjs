@@ -1,5 +1,5 @@
 import http from "node:http";
-import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats } from "./.build/worker.mjs";
+import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, saveEmailVerification, consumeEmailVerification } from "./.build/worker.mjs";
 
 // ---- fake "OpenRouter" upstream (tests OUR adapter; it is NOT the real service) ----
 let mode = "ok", calls = 0; const seen = [];
@@ -181,6 +181,34 @@ const chats = await listUserChats(fakeDb, "user_B", 0);
 t("D1 chat list clamps page size and parses JSON", dbCalls.at(-1).values[1] === 1 && Array.isArray(chats) && chats[0].id === "course-1");
 let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_A", "big", { data: "x".repeat(270000) }, 1); } catch { hugePayloadRejected = true; }
 t("D1 repository rejects oversized JSON records before writing", hugePayloadRejected);
+
+
+const verificationCalls = [];
+const verificationDb = {
+  prepare(sql) {
+    const call = { sql, values: [] }; verificationCalls.push(call);
+    return {
+      bind(...values) { call.values = values; return this; },
+      async run() {
+        if (sql.includes("SET consumed_at = ?")) {
+          return { meta: { changes: call.values[2] === digestA ? 1 : 0 } };
+        }
+        return { meta: { changes: 1 } };
+      }
+    };
+  }
+};
+await saveEmailVerification(verificationDb, " Student@Example.COM ", digestA, 1000, 2000);
+t("Email verification stores only normalized email and token digest with expiry", /code_hash/.test(verificationCalls[0].sql) && verificationCalls[0].values[0] === "student@example.com" && verificationCalls[0].values[1] === digestA && verificationCalls[0].values[2] === 2000);
+verificationCalls.length = 0;
+const verificationAccepted = await consumeEmailVerification(verificationDb, "student@example.com", digestA, 1500);
+t("Email verification consumes a matching unexpired token once", verificationAccepted && /consumed_at IS NULL/.test(verificationCalls[0].sql) && /expires_at > \?/.test(verificationCalls[0].sql));
+verificationCalls.length = 0;
+const verificationRejected = await consumeEmailVerification(verificationDb, "student@example.com", "0".repeat(64), 1500);
+t("Wrong email token is rejected and increments bounded attempts", !verificationRejected && /attempts = attempts \+ 1/.test(verificationCalls[1].sql) && /attempts < 10/.test(verificationCalls[1].sql));
+let invalidVerificationExpiry = false;
+try { await saveEmailVerification(verificationDb, "student@example.com", digestA, 2000, 1000); } catch { invalidVerificationExpiry = true; }
+t("Email verification rejects invalid expiry windows", invalidVerificationExpiry);
 
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }

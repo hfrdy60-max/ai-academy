@@ -30,6 +30,12 @@ function assertId(value: string, code: string): void {
   }
 }
 
+function assertUserId(value: string): void {
+  if (typeof value !== "string" || value.length < 16 || value.length > 80) {
+    throw new Error("invalid_user_id");
+  }
+}
+
 function serializePayload(payload: unknown): string {
   let serialized: string | undefined;
   try {
@@ -65,7 +71,7 @@ export async function findUserByEmail(db: D1Database, value: unknown): Promise<A
 }
 
 export async function insertUser(db: D1Database, id: string, value: unknown, now: number): Promise<void> {
-  assertId(id, "invalid_user_id");
+  assertUserId(id);
   const email = normalizeEmail(value);
   if (!Number.isSafeInteger(now) || now < 0) throw new Error("invalid_timestamp");
   await db.prepare(
@@ -77,7 +83,7 @@ export async function createSession(
   db: D1Database, tokenHash: string, userId: string, createdAt: number, expiresAt: number
 ): Promise<void> {
   if (!/^[a-f0-9]{64}$/i.test(tokenHash)) throw new Error("invalid_token_hash");
-  assertId(userId, "invalid_user_id");
+  assertUserId(userId);
   if (!Number.isSafeInteger(createdAt) || !Number.isSafeInteger(expiresAt) ||
       createdAt < 0 || expiresAt <= createdAt) throw new Error("invalid_session_expiry");
   await db.prepare(

@@ -136,6 +136,52 @@ let malformedToken = false; try { await hashOpaqueToken("short"); } catch { malf
 t("malformed opaque token rejected", malformedToken);
 t("malformed digest rejected", !digestMatches("bad", digestA));
 
+
+ // 11 D1 repository contract tests (mock D1; no remote database is contacted)
+const dbCalls = [];
+const fakeDb = {
+  prepare(sql) {
+    const call = { sql, values: [] }; dbCalls.push(call);
+    return {
+      bind(...values) { call.values = values; return this; },
+      async first() { return { id: "user_1234567890123456", email: "student@example.com", created_at: 1, updated_at: 1 }; },
+      async run() { return { success: true, meta: { changes: 1 } }; },
+      async all() { return { results: [{ id: "course-1", payload: JSON.stringify({ title: "برق خودرو" }), created_at: 1, updated_at: 2 }] }; }
+    };
+  }
+};
+dbCalls.length = 0;
+const foundUser = await findUserByEmail(fakeDb, " Student@Example.COM ");
+t("D1 user lookup normalizes email", foundUser?.email === "student@example.com" && dbCalls.at(-1).values[0] === "student@example.com");
+dbCalls.length = 0;
+await insertUser(fakeDb, "user_1234567890123456", "Student@Example.COM", 100);
+t("D1 user creation stores normalized email and timestamps", dbCalls.at(-1).values[1] === "student@example.com" && dbCalls.at(-1).values[2] === 100);
+dbCalls.length = 0;
+await createSession(fakeDb, digestA, "user_1234567890123456", 100, 200);
+t("D1 session stores token digest, user id and bounded expiry", dbCalls.at(-1).values.join("|") === [digestA,"user_1234567890123456",100,200].join("|"));
+let invalidExpiry = false; try { await createSession(fakeDb, digestA, "user_1234567890123456", 200, 100); } catch { invalidExpiry = true; }
+t("D1 session rejects non-future expiry", invalidExpiry);
+dbCalls.length = 0;
+await findActiveSession(fakeDb, digestA, 150);
+t("D1 active session lookup rejects revoked and expired sessions", /revoked_at IS NULL/.test(dbCalls.at(-1).sql) && /expires_at > \?/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[1] === 150);
+dbCalls.length = 0;
+await revokeSession(fakeDb, digestA, 175);
+t("D1 session revocation only affects an unrevoked digest", /revoked_at IS NULL/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[0] === 175);
+dbCalls.length = 0;
+await putUserCourse(fakeDb, "user_A", "course-1", { title: "برق خودرو" }, 300);
+t("D1 course upsert is scoped to user and composite course key", /ON CONFLICT\(user_id, course_id\)/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[0] === "user_A");
+dbCalls.length = 0;
+const courses = await listUserCourses(fakeDb, "user_A", 999);
+t("D1 course list filters by owner and caps page size", /WHERE user_id = \?/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[1] === 200 && courses[0].payload.title === "برق خودرو");
+dbCalls.length = 0;
+await putUserChat(fakeDb, "user_B", "thread-1", { messages: [] }, 400);
+t("D1 chat upsert is scoped to user and composite thread key", /ON CONFLICT\(user_id, thread_id\)/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[0] === "user_B");
+dbCalls.length = 0;
+const chats = await listUserChats(fakeDb, "user_B", 0);
+t("D1 chat list clamps page size and parses JSON", dbCalls.at(-1).values[1] === 1 && Array.isArray(chats) && chats[0].id === "course-1");
+let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_A", "big", { data: "x".repeat(270000) }, 1); } catch { hugePayloadRejected = true; }
+t("D1 repository rejects oversized JSON records before writing", hugePayloadRejected);
+
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }
 console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);

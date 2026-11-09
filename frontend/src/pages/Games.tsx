@@ -5,13 +5,13 @@ import { fa } from "../lib/format";
 import type { QuizItem } from "../types/course";
 type Card={courseTitle:string;lessonTitle:string;q:QuizItem};
 export default function Games(){
- const {courses,loading,error}=useCourseList();
+ const {courses,error}=useCourseList();
  const deck=useMemo<Card[]>(()=> (courses??[]).flatMap(c=>c.chapters.flatMap(ch=>ch.lessons.flatMap(l=>(l.content?.quiz??[]).map(q=>({courseTitle:c.title,lessonTitle:l.title,q}))))),[courses]);
  const [order,setOrder]=useState(0); const [picked,setPicked]=useState<number|null>(null); const [points,setPoints]=useState(0); const [streak,setStreak]=useState(0); const [answered,setAnswered]=useState(false);
  const current=deck.length?deck[order%deck.length]:null;
  function answer(i:number){if(answered||!current)return;setPicked(i);setAnswered(true);if(i===current.q.correctIndex){setPoints(p=>p+10);setStreak(s=>s+1);}else setStreak(0);}
  function next(){setOrder(o=>o+1);setPicked(null);setAnswered(false);}
- if(loading)return <p className="muted" role="status">در حال آماده‌سازی بازی…</p>;
+ if(courses===null)return <p className="muted" role="status">در حال آماده‌سازی بازی…</p>;
  return <div className="mx-auto max-w-2xl space-y-5">
   <header><h1 className="text-xl font-extrabold md:text-2xl">بازی‌های آموزشی</h1><p className="muted mt-1 text-sm">در چالش دانشی شرکت کن، امتیاز بگیر و زنجیره پاسخ‌های درست بساز.</p></header>
   {error&&<p role="alert" className="card text-sm text-red-700">{error}</p>}

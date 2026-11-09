@@ -228,6 +228,20 @@ t("session service revokes by digest, never raw token", dbCalls.at(-1).values[1]
 let excessiveTtlRejected = false;
 try { await issueSession(fakeDb, "user_1234567890123456", 5000, MAX_SESSION_TTL_MS + 1); } catch { excessiveTtlRejected = true; }
 t("session service caps session lifetime at 30 days", excessiveTtlRejected);
+let zeroTtlRejected = false;
+try { await issueSession(fakeDb, "user_1234567890123456", 5000, 0); } catch { zeroTtlRejected = true; }
+t("session service rejects zero-length sessions", zeroTtlRejected);
+let negativeClockRejected = false;
+try { await issueSession(fakeDb, "user_1234567890123456", -1); } catch { negativeClockRejected = true; }
+t("session service rejects negative creation timestamps", negativeClockRejected);
+let overflowRejected = false;
+try { await issueSession(fakeDb, "user_1234567890123456", Number.MAX_SAFE_INTEGER - 10, 100); } catch { overflowRejected = true; }
+t("session service rejects timestamp overflow", overflowRejected);
+dbCalls.length = 0;
+t("session resolver rejects invalid clock without querying D1", await resolveSession(fakeDb, issued.token, -1) === null && dbCalls.length === 0);
+let malformedRevokeRejected = false;
+try { await revokeSessionToken(fakeDb, "bad-token", 7000); } catch { malformedRevokeRejected = true; }
+t("session revocation rejects malformed raw tokens", malformedRevokeRejected);
 
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }

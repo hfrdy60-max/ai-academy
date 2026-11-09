@@ -144,7 +144,7 @@ const fakeDb = {
     const call = { sql, values: [] }; dbCalls.push(call);
     return {
       bind(...values) { call.values = values; return this; },
-      async first() { return { id: "user_1234567890123456", email: "student@example.com", created_at: 1, updated_at: 1 }; },
+      async first() { return call.sql.includes("FROM sessions s") ? { token_hash: call.values[0], user_id: "user_1234567890123456", created_at: 1, expires_at: 999999, email: "student@example.com" } : { id: "user_1234567890123456", email: "student@example.com", created_at: 1, updated_at: 1 }; },
       async run() { return { success: true, meta: { changes: 1 } }; },
       async all() { return { results: [{ id: "course-1", payload: JSON.stringify({ title: "برق خودرو" }), created_at: 1, updated_at: 2 }] }; }
     };

@@ -26,6 +26,19 @@ function readLocalResults<T extends { id: string; date: number }>(key: string, v
   }
 }
 
+function printCertificate(title: string, subject: string, completedAt: string) {
+  const popup = window.open("", "_blank", "noopener,noreferrer");
+  if (!popup) {
+    window.alert("مرورگر اجازه باز کردن پنجره گواهی را نداد. پنجره‌های بازشو را برای این سایت مجاز کنید.");
+    return;
+  }
+  const safe = (value: string) => value.replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] ?? ch));
+  popup.document.write(`<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>گواهی یادگیری</title><style>
+    *{box-sizing:border-box}body{margin:0;padding:32px;background:#f1f5f9;color:#172554;font-family:Tahoma,Arial,sans-serif}.paper{max-width:900px;min-height:580px;margin:4vh auto;padding:56px 42px;border:10px double #64748b;background:white;text-align:center;display:flex;flex-direction:column;justify-content:center;gap:22px}.label{font-size:18px;color:#475569}.title{font-size:34px;font-weight:bold;line-height:1.7}.course{font-size:27px;font-weight:bold;color:#4338ca}.meta{font-size:15px;color:#475569}.disclaimer{font-size:12px;color:#64748b;margin-top:20px}@media print{body{padding:0;background:white}.paper{margin:0;max-width:none;min-height:100vh;break-inside:avoid}}
+    </style></head><body><main class="paper"><div class="label">آکادمی هوش مصنوعی</div><div class="title">گواهی پایان دوره</div><div class="label">این گواهی نشان می‌دهد که دوره آموزشی زیر در این برنامه به پایان رسیده است:</div><div class="course">${safe(title)}</div><div class="label">حوزه آموزشی: ${safe(subject)}</div><div class="meta">تاریخ تکمیل: ${safe(completedAt)}</div><div class="disclaimer">این گواهی خودکار و غیررسمی است و مدرک تحصیلی یا گواهی معتبر سازمانی محسوب نمی‌شود.</div></main><script>window.addEventListener('load',()=>window.print())</script></body></html>`);
+  popup.document.close();
+}
+
 function isExamResult(x: unknown): x is ExamResult {
   if (!x || typeof x !== "object") return false;
   const r = x as Record<string, unknown>;
@@ -83,7 +96,7 @@ export default function Progress() {
       <section className="card space-y-3">
         <h2 className="font-bold">پیشرفت دوره‌ها</h2>
         {totals.length === 0 ? <p className="muted text-sm">هنوز دوره‌ای نساخته‌اید. <Link className="text-indigo-600 underline dark:text-indigo-300" to="/create">ساخت اولین دوره</Link></p> :
-          totals.map(({ course, done, total, percent }) => <div key={course.id}><div className="mb-1 flex justify-between gap-2 text-sm"><Link to={`/courses/${course.id}`} className="font-semibold hover:underline">{course.title}</Link><span className="muted">{fa(done)} از {fa(total)}</span></div><ProgressBar value={done} max={total || 1} label={`پیشرفت ${course.title}`} /><p className="muted mt-1 text-left text-xs">{fa(percent)}٪</p></div>)
+          totals.map(({ course, done, total, percent }) => <div key={course.id} className="space-y-2"><div className="mb-1 flex justify-between gap-2 text-sm"><Link to={`/courses/${course.id}`} className="font-semibold hover:underline">{course.title}</Link><span className="muted">{fa(done)} از {fa(total)}</span></div><ProgressBar value={done} max={total || 1} label={`پیشرفت ${course.title}`} /><div className="flex flex-wrap items-center justify-between gap-2"><p className="muted text-xs">{fa(percent)}٪</p>{total > 0 && done === total && <button type="button" className="btn btn-ghost text-xs" onClick={() => printCertificate(course.title, course.subject, new Date(course.updatedAt).toLocaleDateString("fa-IR"))}>چاپ گواهی پایان دوره</button>}</div></div>)
         }
       </section>
       <section className="card">

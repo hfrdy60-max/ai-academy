@@ -1,5 +1,4 @@
-import type { D1Database } from "@cloudflare/workers-types";
-import { digestMatches, normalizeEmail } from "./crypto";
+import { normalizeEmail } from "./crypto";
 
 export interface AccountUser {
   id: string;
@@ -152,5 +151,3 @@ export async function listUserChats(db: D1Database, userId: string, limit = 100)
   return parseRecords(result.results ?? []);
 }
 
-/** Re-exported here for callers that need to compare a supplied token digest safely. */
-export { digestMatches };

@@ -220,7 +220,7 @@ t("session service issues a random token and seven-day default expiry", /^[a-f0-
 t("session service persists only the token hash", dbCalls.at(-1).values[0] === await hashOpaqueToken(issued.token) && dbCalls.at(-1).values[0] !== issued.token);
 dbCalls.length = 0;
 const resolved = await resolveSession(fakeDb, issued.token, 6000);
-t("session service resolves token through its digest", resolved?.user_id === "user_1234567890123456" && dbCalls.at(-1).values[0] === await hashOpaqueToken(issued.token));
+t("session service resolves token through its digest", resolved?.userId === "user_1234567890123456" && resolved.email === "student@example.com" && !("token_hash" in resolved) && dbCalls.at(-1).values[0] === await hashOpaqueToken(issued.token));
 t("invalid session token safely resolves to null", await resolveSession(fakeDb, "not-a-token", 6000) === null);
 dbCalls.length = 0;
 await revokeSessionToken(fakeDb, issued.token, 7000);

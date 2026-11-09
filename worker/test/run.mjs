@@ -156,6 +156,9 @@ t("D1 user lookup normalizes email", foundUser?.email === "student@example.com" 
 dbCalls.length = 0;
 await insertUser(fakeDb, "user_1234567890123456", "Student@Example.COM", 100);
 t("D1 user creation stores normalized email and timestamps", dbCalls.at(-1).values[1] === "student@example.com" && dbCalls.at(-1).values[2] === 100);
+let shortUserIdRejected = false;
+try { await insertUser(fakeDb, "short", "student@example.com", 100); } catch { shortUserIdRejected = true; }
+t("D1 user creation enforces the schema user-id length", shortUserIdRejected);
 dbCalls.length = 0;
 await createSession(fakeDb, digestA, "user_1234567890123456", 100, 200);
 t("D1 session stores token digest, user id and bounded expiry", dbCalls.at(-1).values.join("|") === [digestA,"user_1234567890123456",100,200].join("|"));
@@ -168,18 +171,18 @@ dbCalls.length = 0;
 await revokeSession(fakeDb, digestA, 175);
 t("D1 session revocation only affects an unrevoked digest", /revoked_at IS NULL/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[0] === 175);
 dbCalls.length = 0;
-await putUserCourse(fakeDb, "user_A", "course-1", { title: "برق خودرو" }, 300);
-t("D1 course upsert is scoped to user and composite course key", /ON CONFLICT\(user_id, course_id\)/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[0] === "user_A");
+await putUserCourse(fakeDb, "user_1234567890123456", "course-1", { title: "برق خودرو" }, 300);
+t("D1 course upsert is scoped to user and composite course key", /ON CONFLICT\(user_id, course_id\)/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[0] === "user_1234567890123456");
 dbCalls.length = 0;
-const courses = await listUserCourses(fakeDb, "user_A", 999);
+const courses = await listUserCourses(fakeDb, "user_1234567890123456", 999);
 t("D1 course list filters by owner and caps page size", /WHERE user_id = \?/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[1] === 200 && courses[0].payload.title === "برق خودرو");
 dbCalls.length = 0;
-await putUserChat(fakeDb, "user_B", "thread-1", { messages: [] }, 400);
-t("D1 chat upsert is scoped to user and composite thread key", /ON CONFLICT\(user_id, thread_id\)/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[0] === "user_B");
+await putUserChat(fakeDb, "user_2234567890123456", "thread-1", { messages: [] }, 400);
+t("D1 chat upsert is scoped to user and composite thread key", /ON CONFLICT\(user_id, thread_id\)/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[0] === "user_2234567890123456");
 dbCalls.length = 0;
-const chats = await listUserChats(fakeDb, "user_B", 0);
+const chats = await listUserChats(fakeDb, "user_2234567890123456", 0);
 t("D1 chat list clamps page size and parses JSON", dbCalls.at(-1).values[1] === 1 && Array.isArray(chats) && chats[0].id === "course-1");
-let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_A", "big", { data: "x".repeat(270000) }, 1); } catch { hugePayloadRejected = true; }
+let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_1234567890123456", "big", { data: "x".repeat(270000) }, 1); } catch { hugePayloadRejected = true; }
 t("D1 repository rejects oversized JSON records before writing", hugePayloadRejected);
 
 

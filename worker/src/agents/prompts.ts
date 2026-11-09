@@ -25,7 +25,12 @@ export function outlineMessages(c: CourseCtx): ChatMsg[] {
   return [
     { role: "system", content: `${BASE}
 Role: curriculum designer. Learner level: ${LEVEL_TEXT[c.level]}.
-Design a course structure of 3-8 chapters, each with 2-6 lessons, ordered from simple to complex. Titles must be short Persian phrases.
+Design a coherent course structure of 3-8 chapters, each with 2-6 lessons, ordered from prerequisites to mastery. Titles must be short Persian phrases.
+- Build a real curriculum progression: every lesson must teach a distinct new skill, concept, method, or application.
+- Do not create several lessons that merely rephrase the introduction or repeat definitions.
+- Move from foundations to mechanisms, worked applications, problem-solving, and advanced/real-world use as appropriate to the learner level.
+- Make lesson titles specific and outcome-oriented; avoid generic titles such as "مقدمه", "آشنایی بیشتر", or repeated "مفاهیم پایه".
+- Ensure later chapters explicitly build on earlier chapters and increase in depth.
 Return ONLY one JSON object, no markdown, in exactly this shape:
 {"chapters":[{"title":"...","lessons":["...","..."]}]}` },
     { role: "user", content: courseBlock(c) }

@@ -114,7 +114,7 @@ export async function revokeSession(db: D1Database, tokenHash: string, now: numb
 export async function putUserCourse(
   db: D1Database, userId: string, courseId: string, payload: unknown, now: number
 ): Promise<void> {
-  assertId(userId, "invalid_user_id");
+  assertUserId(userId);
   assertId(courseId, "invalid_record_id");
   const serialized = serializePayload(payload);
   if (!Number.isSafeInteger(now) || now < 0) throw new Error("invalid_timestamp");
@@ -125,7 +125,7 @@ export async function putUserCourse(
 }
 
 export async function listUserCourses(db: D1Database, userId: string, limit = 100): Promise<StoredRecord[]> {
-  assertId(userId, "invalid_user_id");
+  assertUserId(userId);
   const safeLimit = Number.isInteger(limit) ? Math.min(200, Math.max(1, limit)) : 100;
   const result = await db.prepare(
     "SELECT course_id AS id, payload, created_at, updated_at FROM user_courses " +
@@ -137,7 +137,7 @@ export async function listUserCourses(db: D1Database, userId: string, limit = 10
 export async function putUserChat(
   db: D1Database, userId: string, threadId: string, payload: unknown, now: number
 ): Promise<void> {
-  assertId(userId, "invalid_user_id");
+  assertUserId(userId);
   assertId(threadId, "invalid_record_id");
   const serialized = serializePayload(payload);
   if (!Number.isSafeInteger(now) || now < 0) throw new Error("invalid_timestamp");
@@ -148,7 +148,7 @@ export async function putUserChat(
 }
 
 export async function listUserChats(db: D1Database, userId: string, limit = 100): Promise<StoredRecord[]> {
-  assertId(userId, "invalid_user_id");
+  assertUserId(userId);
   const safeLimit = Number.isInteger(limit) ? Math.min(200, Math.max(1, limit)) : 100;
   const result = await db.prepare(
     "SELECT thread_id AS id, payload, created_at, updated_at FROM user_chats " +

@@ -1,5 +1,12 @@
 import { createOpaqueToken, hashOpaqueToken } from "./crypto";
-import { createSession, findActiveSession, revokeSession, type ActiveSession } from "./repository";
+import { createSession, findActiveSession, revokeSession } from "./repository";
+
+export interface ResolvedSession {
+  userId: string;
+  email: string;
+  createdAt: number;
+  expiresAt: number;
+}
 
 /** Default session lifetime: seven days. Callers may choose a shorter lifetime. */
 export const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -34,11 +41,19 @@ export async function resolveSession(
   db: D1Database,
   token: string,
   now = Date.now()
-): Promise<ActiveSession | null> {
+): Promise<ResolvedSession | null> {
   if (!/^[a-f0-9]{64}$/i.test(token) || !Number.isSafeInteger(now) || now < 0) {
     return null;
   }
-  return findActiveSession(db, await hashOpaqueToken(token), now);
+  const session = await findActiveSession(db, await hashOpaqueToken(token), now);
+  if (!session) return null;
+  // Never expose the persisted token digest to route handlers or application code.
+  return {
+    userId: session.user_id,
+    email: session.email,
+    createdAt: session.created_at,
+    expiresAt: session.expires_at
+  };
 }
 
 /** Revoke the session represented by a raw token. */

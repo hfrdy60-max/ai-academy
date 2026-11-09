@@ -229,6 +229,25 @@ t("D1 chat list clamps page size and parses JSON", dbCalls.at(-1).values[1] === 
 let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_1234567890123456", "big", { data: "x".repeat(270000) }, 1); } catch { hugePayloadRejected = true; }
 t("D1 repository rejects oversized JSON records before writing", hugePayloadRejected);
 
+let circularPayloadRejected = false;
+const circularPayload = {}; circularPayload.self = circularPayload;
+try { await putUserChat(fakeDb, "user_1234567890123456", "circular", circularPayload, 1); } catch (error) { circularPayloadRejected = error.message === "invalid_payload"; }
+t("D1 repository rejects circular JSON records before writing", circularPayloadRejected);
+const corruptPayloadDb = {
+  prepare(sql) {
+    return {
+      bind() { return this; },
+      async all() { return { results: [{ id: "broken", payload: "{not-json", created_at: 1, updated_at: 2 }] }; }
+    };
+  }
+};
+let corruptCoursePayloadRejected = false;
+try { await listUserCourses(corruptPayloadDb, "user_1234567890123456"); } catch (error) { corruptCoursePayloadRejected = error.message === "stored_payload_invalid"; }
+t("D1 course listing rejects corrupted stored JSON", corruptCoursePayloadRejected);
+let corruptChatPayloadRejected = false;
+try { await listUserChats(corruptPayloadDb, "user_1234567890123456"); } catch (error) { corruptChatPayloadRejected = error.message === "stored_payload_invalid"; }
+t("D1 chat listing rejects corrupted stored JSON", corruptChatPayloadRejected);
+
 
 const verificationCalls = [];
 const verificationDb = {

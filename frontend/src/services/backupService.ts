@@ -38,7 +38,7 @@ export async function exportData(): Promise<string> {
 }
 
 /** Validate the entire backup before writing; all imported stores commit in one transaction. */
-export async function importData(text: string): Promise<{ courses: number; chats: number }> {
+export async function importData(text: string): Promise<{ courses: number; chats: number; exams: number; games: number }> {
   if (new TextEncoder().encode(text).byteLength > MAX_IMPORT_BYTES) throw new Error("فایل بیش از حد بزرگ است.");
   let raw: unknown;
   try { raw = JSON.parse(text); } catch { throw new Error("فایل JSON معتبر نیست."); }
@@ -87,7 +87,7 @@ export async function importData(text: string): Promise<{ courses: number; chats
     } catch { /* best effort */ }
     throw new Error("دوره‌ها و گفتگوها وارد شدند، اما ذخیره سوابق آزمون و بازی ممکن نشد. فضای ذخیره‌سازی را بررسی کنید.");
   }
-  return { courses: courses.length, chats: chats.length };
+  return { courses: courses.length, chats: chats.length, exams: examResults.length, games: gameResults.length };
 }
 
 export const deleteAllData = (): Promise<void> => clearAllData();

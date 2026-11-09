@@ -171,7 +171,7 @@ let whitespaceOwnerRejected = false;
 try { await listUserCourses(fakeDb, "                "); } catch (error) { whitespaceOwnerRejected = error.message === "invalid_user_id"; }
 t("D1 repository rejects whitespace-only owner IDs before database access", whitespaceOwnerRejected && dbCalls.length === 0);
 let controlOwnerRejected = false;
-try { await listUserChats(fakeDb, "user_123456789012345\\u0000"); } catch (error) { controlOwnerRejected = error.message === "invalid_user_id"; }
+try { await listUserChats(fakeDb, "user_123456789012345" + String.fromCharCode(0)); } catch (error) { controlOwnerRejected = error.message === "invalid_user_id"; }
 t("D1 repository rejects control characters in owner IDs before database access", controlOwnerRejected && dbCalls.length === 0);
 
 dbCalls.length = 0;

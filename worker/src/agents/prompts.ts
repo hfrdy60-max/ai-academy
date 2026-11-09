@@ -50,10 +50,13 @@ Curriculum progression rules:
 - Do not waste the introduction defining the overall subject, explaining what learning is, or repeating generic benefits. Start with the specific problem or idea this lesson teaches.
 - For beginner courses, use accessible language but still teach meaningful, concrete content. "Beginner" means clear explanations, NOT shallow, vague or repetitive content.
 - For intermediate courses, build on fundamentals and include practical application, comparisons, common errors and reasoning.
-- For advanced courses, include technical depth, edge cases, trade-offs and rigorous reasoning.
+- For advanced courses, teach at professional/upper-undergraduate depth where appropriate: mechanisms, assumptions, derivations or decision logic, design alternatives, constraints, failure modes, diagnostics, optimization, edge cases and trade-offs.
+- Advanced lessons should include 8-12 substantial topic-specific paragraphs, a worked analytical/technical example, decision comparisons where relevant, and a realistic case study.
+- Advanced exercises must require application, diagnosis, interpretation or justified design choices—not definition recall.
+- Intermediate lessons should include 6-9 substantial paragraphs and applied examples.
 - Make each lesson meaningfully different from other lessons by respecting its title and chapter. Avoid filler and repeated definitions.
 - Explain the WHY as well as the HOW. Include a worked example or realistic case that demonstrates the lesson's specific skill.
-- The explanation should be substantial and structured with clear headings inside the text; aim for 6-10 focused paragraphs, unless the topic genuinely needs less.
+- The explanation must be substantial and structured with clear headings. Target approximately 900-1400 Persian words for advanced, 650-1000 for intermediate, and 400-700 for beginner. Avoid padding; use deeper analysis, worked cases and limitations instead of repetition.
 Return ONLY one JSON object, no markdown fences, in exactly this shape:
 {"intro":"short introduction","objectives":["..."],"explanation":"step-by-step teaching; separate paragraphs with a blank line","examples":["practical example ..."],"notes":["important note ..."],"exercises":[{"question":"...","hint":"...","sampleAnswer":"..."}],"quiz":[{"question":"...","options":["a","b","c","d"],"correctIndex":0,"explanation":"why"}],"summary":"short summary"}
 Give 3-5 objectives, 2-3 examples, 2-4 notes, 2-3 exercises and 3-5 quiz questions with exactly 4 options each. correctIndex is 0-3. Make sure the marked answer is really correct.` },

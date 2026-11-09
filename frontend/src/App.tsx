@@ -8,11 +8,11 @@ import LessonPage from "./pages/LessonPage";
 import EditCourse from "./pages/EditCourse";
 import Teacher from "./pages/Teacher";
 import Settings from "./pages/Settings";
+import Progress from "./pages/Progress";
 import ComingSoon from "./pages/ComingSoon";
 import { NAV } from "./nav";
 
-// Sections that already have a real page. Everything else shows the honest "not built yet" page.
-const BUILT = new Set(["/", "/courses", "/create", "/teacher", "/settings"]);
+const BUILT = new Set(["/", "/courses", "/create", "/teacher", "/settings", "/progress"]);
 
 export default function App() {
   return (
@@ -26,6 +26,7 @@ export default function App() {
         <Route path="/create" element={<CreateCourse />} />
         <Route path="/teacher" element={<Teacher />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/progress" element={<Progress />} />
         {NAV.filter(n => !BUILT.has(n.path)).map(n => <Route key={n.path} path={n.path} element={<ComingSoon />} />)}
         <Route path="*" element={<ComingSoon />} />
       </Route>

@@ -74,7 +74,7 @@ export default function Settings() {
     if (file.size > MAX_IMPORT_BYTES) { setDataMsg({ ok: false, text: "فایل بیش از حد بزرگ است." }); return; }
     try {
       const r = await importData(await file.text());
-      setDataMsg({ ok: true, text: `${fa(r.courses)} دوره و ${fa(r.chats)} گفتگو وارد شد. صفحه «دوره‌های من» را ببینید.` });
+      setDataMsg({ ok: true, text: `${fa(r.courses)} دوره، ${fa(r.chats)} گفتگو، ${fa(r.exams)} سابقه آزمون و ${fa(r.games)} سابقه بازی وارد شد.` });
     } catch (err) { setDataMsg({ ok: false, text: errMsg(err) }); }
     finally { if (fileRef.current) fileRef.current.value = ""; }
   }

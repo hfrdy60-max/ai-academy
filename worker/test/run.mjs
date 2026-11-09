@@ -236,6 +236,16 @@ t("D1 chat list clamps page size and parses JSON", dbCalls.at(-1).values[1] === 
 let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_1234567890123456", "big", { data: "x".repeat(270000) }, 1); } catch { hugePayloadRejected = true; }
 t("D1 repository rejects oversized JSON records before writing", hugePayloadRejected);
 
+dbCalls.length = 0;
+let boundaryPayloadAccepted = true;
+try { await putUserCourse(fakeDb, "user_1234567890123456", "boundary", { data: "x".repeat(256 * 1024 - 11) }, 1); } catch { boundaryPayloadAccepted = false; }
+t("D1 repository accepts JSON payload at exactly 256 KiB", boundaryPayloadAccepted && dbCalls.length === 1);
+
+dbCalls.length = 0;
+let overBoundaryPayloadRejected = false;
+try { await putUserChat(fakeDb, "user_1234567890123456", "over-boundary", { data: "x".repeat(256 * 1024 - 10) }, 1); } catch (error) { overBoundaryPayloadRejected = error.message === "invalid_payload"; }
+t("D1 repository rejects JSON payload one byte above 256 KiB before writing", overBoundaryPayloadRejected && dbCalls.length === 0);
+
 let circularPayloadRejected = false;
 const circularPayload = {}; circularPayload.self = circularPayload;
 try { await putUserChat(fakeDb, "user_1234567890123456", "circular", circularPayload, 1); } catch (error) { circularPayloadRejected = error.message === "invalid_payload"; }

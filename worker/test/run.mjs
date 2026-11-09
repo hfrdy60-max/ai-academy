@@ -151,6 +151,20 @@ t("email containing embedded whitespace is rejected", embeddedWhitespaceRejected
 t("digest comparison accepts equivalent uppercase hex", digestMatches(digestA.toUpperCase(), digestA));
 t("digest comparison rejects unequal fixed-size digests", !digestMatches("a".repeat(64), "b".repeat(64)));
 
+// 11 D1 repository contract tests (mock D1; no remote database is contacted)
+const dbCalls = [];
+const fakeDb = {
+  prepare(sql) {
+    const call = { sql, values: [] }; dbCalls.push(call);
+    return {
+      bind(...values) { call.values = values; return this; },
+      async first() { return call.sql.includes("FROM sessions s") ? { token_hash: call.values[0], user_id: "user_1234567890123456", created_at: 1, expires_at: 999999, email: "student@example.com" } : { id: "user_1234567890123456", email: "student@example.com", created_at: 1, updated_at: 1 }; },
+      async run() { return { success: true, meta: { changes: 1 } }; },
+      async all() { return { results: [{ id: "course-1", payload: JSON.stringify({ title: "برق خودرو" }), created_at: 1, updated_at: 2 }] }; }
+    };
+  }
+};
+
 // 11a repository boundary validation
 dbCalls.length = 0;
 let invalidCourseIdRejected = false;
@@ -166,19 +180,6 @@ let invalidChatClockRejected = false;
 try { await putUserChat(fakeDb, "user_1234567890123456", "thread-1", {}, -1); } catch (error) { invalidChatClockRejected = error.message === "invalid_timestamp"; }
 t("D1 chat write rejects negative timestamps before database access", invalidChatClockRejected && dbCalls.length === 0);
 
-// 11 D1 repository contract tests (mock D1; no remote database is contacted)
-const dbCalls = [];
-const fakeDb = {
-  prepare(sql) {
-    const call = { sql, values: [] }; dbCalls.push(call);
-    return {
-      bind(...values) { call.values = values; return this; },
-      async first() { return call.sql.includes("FROM sessions s") ? { token_hash: call.values[0], user_id: "user_1234567890123456", created_at: 1, expires_at: 999999, email: "student@example.com" } : { id: "user_1234567890123456", email: "student@example.com", created_at: 1, updated_at: 1 }; },
-      async run() { return { success: true, meta: { changes: 1 } }; },
-      async all() { return { results: [{ id: "course-1", payload: JSON.stringify({ title: "برق خودرو" }), created_at: 1, updated_at: 2 }] }; }
-    };
-  }
-};
 dbCalls.length = 0;
 const foundUser = await findUserByEmail(fakeDb, " Student@Example.COM ");
 t("D1 user lookup normalizes email", foundUser?.email === "student@example.com" && dbCalls.at(-1).values[0] === "student@example.com");

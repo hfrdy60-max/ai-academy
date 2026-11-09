@@ -175,7 +175,7 @@ let whitespaceCourseIdRejected = false;
 try { await putUserCourse(fakeDb, "user_1234567890123456", "   ", {}, 10); } catch (error) { whitespaceCourseIdRejected = error.message === "invalid_record_id"; }
 t("D1 course write rejects whitespace-only record IDs before database access", whitespaceCourseIdRejected && dbCalls.length === 0);
 let controlChatIdRejected = false;
-try { await putUserChat(fakeDb, "user_1234567890123456", "thread\\u0000id", {}, 10); } catch (error) { controlChatIdRejected = error.message === "invalid_record_id"; }
+try { await putUserChat(fakeDb, "user_1234567890123456", "thread\u0000id", {}, 10); } catch (error) { controlChatIdRejected = error.message === "invalid_record_id"; }
 t("D1 chat write rejects control characters in record IDs before database access", controlChatIdRejected && dbCalls.length === 0);
 let invalidChatIdRejected = false;
 try { await putUserChat(fakeDb, "user_1234567890123456", "x".repeat(129), {}, 10); } catch (error) { invalidChatIdRejected = error.message === "invalid_record_id"; }

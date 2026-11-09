@@ -77,8 +77,7 @@ npm test
 برای مرحله راه‌اندازی، مالک پروژه باید در پوشه worker یک D1 بسازد:
 
 ```bash
-
-px wrangler d1 create ai-academy-db
+npx wrangler d1 create ai-academy-db
 ```
 
 سپس شناسه دیتابیس خروجی Cloudflare باید در یک binding با نام DB در worker/wrangler.toml قرار بگیرد (شناسه دیتابیس عمومی است، اما نباید مقدار ساختگی گذاشت). پس از تنظیم binding و بازبینی محیط مقصد، migration با دستور زیر اعمال می‌شود:

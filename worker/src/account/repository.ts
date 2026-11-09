@@ -151,3 +151,43 @@ export async function listUserChats(db: D1Database, userId: string, limit = 100)
   return parseRecords(result.results ?? []);
 }
 
+export async function saveEmailVerification(
+  db: D1Database, value: unknown, codeHash: string, createdAt: number, expiresAt: number
+): Promise<void> {
+  const email = normalizeEmail(value);
+  if (!/^[a-f0-9]{64}$/i.test(codeHash)) throw new Error("invalid_verification_hash");
+  if (!Number.isSafeInteger(createdAt) || !Number.isSafeInteger(expiresAt) ||
+      createdAt < 0 || expiresAt <= createdAt) throw new Error("invalid_verification_expiry");
+  await db.prepare(
+    "INSERT INTO email_verifications (email, code_hash, expires_at, attempts, created_at, consumed_at) " +
+    "VALUES (?, ?, ?, 0, ?, NULL) ON CONFLICT(email) DO UPDATE SET " +
+    "code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0, " +
+    "created_at = excluded.created_at, consumed_at = NULL"
+  ).bind(email, codeHash.toLowerCase(), expiresAt, createdAt).run();
+}
+
+/**
+ * Consume a one-time email token. A wrong token increments the bounded attempt
+ * counter; a correct token can be consumed only once and only before expiry.
+ * Callers should rate-limit requests independently by IP and normalized email.
+ */
+export async function consumeEmailVerification(
+  db: D1Database, value: unknown, codeHash: string, now: number
+): Promise<boolean> {
+  const email = normalizeEmail(value);
+  if (!/^[a-f0-9]{64}$/i.test(codeHash) || !Number.isSafeInteger(now) || now < 0) {
+    throw new Error("invalid_verification_lookup");
+  }
+  const digest = codeHash.toLowerCase();
+  const consumed = await db.prepare(
+    "UPDATE email_verifications SET consumed_at = ? " +
+    "WHERE email = ? AND code_hash = ? AND consumed_at IS NULL AND expires_at > ? AND attempts < 10"
+  ).bind(now, email, digest, now).run();
+  if ((consumed.meta?.changes ?? 0) > 0) return true;
+
+  await db.prepare(
+    "UPDATE email_verifications SET attempts = attempts + 1 " +
+    "WHERE email = ? AND code_hash <> ? AND consumed_at IS NULL AND expires_at > ? AND attempts < 10"
+  ).bind(email, digest, now).run();
+  return false;
+}

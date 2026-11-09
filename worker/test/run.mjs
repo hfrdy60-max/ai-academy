@@ -227,6 +227,22 @@ let invalidVerificationExpiry = false;
 try { await saveEmailVerification(verificationDb, "student@example.com", digestA, 2000, 1000); } catch { invalidVerificationExpiry = true; }
 t("Email verification rejects invalid expiry windows", invalidVerificationExpiry);
 
+// 11b invalid repository inputs are rejected before D1 access
+dbCalls.length = 0;
+let invalidUserTimestamp = false;
+try { await insertUser(fakeDb, "user_1234567890123456", "student@example.com", Number.NaN); } catch (error) { invalidUserTimestamp = error.message === "invalid_timestamp"; }
+t("D1 user creation rejects non-finite timestamps before writing", invalidUserTimestamp && dbCalls.length === 0);
+verificationCalls.length = 0;
+let malformedVerificationHash = false;
+try { await saveEmailVerification(verificationDb, "student@example.com", "not-a-digest", 1000, 2000); } catch (error) { malformedVerificationHash = error.message === "invalid_verification_hash"; }
+t("Email verification refuses malformed hashes before D1 access", malformedVerificationHash && verificationCalls.length === 0);
+let invalidVerificationLookup = false;
+try { await consumeEmailVerification(verificationDb, "student@example.com", "bad", 1500); } catch (error) { invalidVerificationLookup = error.message === "invalid_verification_lookup"; }
+t("Email verification lookup refuses malformed hashes before D1 access", invalidVerificationLookup && verificationCalls.length === 0);
+let invalidVerificationClock = false;
+try { await consumeEmailVerification(verificationDb, "student@example.com", digestA, -1); } catch (error) { invalidVerificationClock = error.message === "invalid_verification_lookup"; }
+t("Email verification lookup refuses negative timestamps before D1 access", invalidVerificationClock && verificationCalls.length === 0);
+
 // 12 internal session service (no public auth endpoints or cookie policy)
 dbCalls.length = 0;
 const issued = await issueSession(fakeDb, "user_1234567890123456", 5000);

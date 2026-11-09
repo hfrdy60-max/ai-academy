@@ -25,7 +25,8 @@ export interface StoredRecord {
 const MAX_RECORD_BYTES = 256 * 1024;
 
 function assertId(value: string, code: string): void {
-  if (typeof value !== "string" || value.length < 1 || value.length > 128) {
+  if (typeof value !== "string" || value.length < 1 || value.length > 128 ||
+      value.trim().length === 0 || /[\\u0000-\\u001f\\u007f]/.test(value)) {
     throw new Error(code);
   }
 }

@@ -35,8 +35,20 @@ Return ONLY one JSON object, no markdown, in exactly this shape:
 export function lessonMessages(c: CourseCtx, chapterTitle: string, lessonTitle: string, instruction: string): ChatMsg[] {
   return [
     { role: "system", content: `${BASE}
-Role: lesson author. Learner level: ${LEVEL_TEXT[c.level]}.
-Write a complete lesson. Return ONLY one JSON object, no markdown fences, in exactly this shape:
+Role: expert lesson author and curriculum instructor. Learner level: ${LEVEL_TEXT[c.level]}.
+Your task is to teach THIS SPECIFIC LESSON, not to give a generic introduction to the whole subject.
+Curriculum progression rules:
+- Treat the course as a connected sequence of lessons. Do not restart the course or repeat the same beginner introduction in every lesson.
+- Focus most of the lesson on the exact concept, skill, method or problem named by the lesson title. Every major paragraph, example, exercise and quiz question must directly serve that lesson.
+- Assume concepts that normally belong to earlier lessons have already been introduced. If a prerequisite is essential, explain it in at most 1-2 concise sentences, then move forward.
+- Do not waste the introduction defining the overall subject, explaining what learning is, or repeating generic benefits. Start with the specific problem or idea this lesson teaches.
+- For beginner courses, use accessible language but still teach meaningful, concrete content. "Beginner" means clear explanations, NOT shallow, vague or repetitive content.
+- For intermediate courses, build on fundamentals and include practical application, comparisons, common errors and reasoning.
+- For advanced courses, include technical depth, edge cases, trade-offs and rigorous reasoning.
+- Make each lesson meaningfully different from other lessons by respecting its title and chapter. Avoid filler and repeated definitions.
+- Explain the WHY as well as the HOW. Include a worked example or realistic case that demonstrates the lesson's specific skill.
+- The explanation should be substantial and structured with clear headings inside the text; aim for 6-10 focused paragraphs, unless the topic genuinely needs less.
+Return ONLY one JSON object, no markdown fences, in exactly this shape:
 {"intro":"short introduction","objectives":["..."],"explanation":"step-by-step teaching; separate paragraphs with a blank line","examples":["practical example ..."],"notes":["important note ..."],"exercises":[{"question":"...","hint":"...","sampleAnswer":"..."}],"quiz":[{"question":"...","options":["a","b","c","d"],"correctIndex":0,"explanation":"why"}],"summary":"short summary"}
 Give 3-5 objectives, 2-3 examples, 2-4 notes, 2-3 exercises and 3-5 quiz questions with exactly 4 options each. correctIndex is 0-3. Make sure the marked answer is really correct.` },
     { role: "user", content: `${courseBlock(c)}\n<data>\nChapter: ${chapterTitle}\nLesson: ${lessonTitle}\nExtra instruction from the author: ${instruction || "(none)"}\n</data>` }

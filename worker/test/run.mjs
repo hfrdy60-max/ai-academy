@@ -1,5 +1,5 @@
 import http from "node:http";
-import worker, { resetRateLimit } from "./.build/worker.mjs";
+import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches } from "./.build/worker.mjs";
 
 // ---- fake "OpenRouter" upstream (tests OUR adapter; it is NOT the real service) ----
 let mode = "ok", calls = 0; const seen = [];
@@ -119,6 +119,23 @@ t("token brute-forcing is throttled", JSON.stringify(bf) === "[401,401,401,429,4
 reset("always500"); r = await call("/api/ai/chat", { body: { level: "beginner", messages: [{ role: "user", content: "x" }] } });
 t("error responses contain ONLY {ok,error} (no stack/detail)", JSON.stringify(Object.keys(r.json).sort()) === '["error","ok"]', Object.keys(r.json).join(","));
 r = await call("/api/ai/outline", { body: { course }, token: "bad" }); t("401 body contains only {ok,error}", JSON.stringify(Object.keys(r.json).sort()) === '["error","ok"]');
+// 10 account token primitives (no database/email provider required)
+let normalized = "";
+try { normalized = normalizeEmail("  Student@Example.COM "); } catch {}
+t("account email is normalized", normalized === "student@example.com");
+let invalidEmail = false; try { normalizeEmail("not-an-email"); } catch { invalidEmail = true; }
+t("invalid account email rejected", invalidEmail);
+const opaqueA = createOpaqueToken(), opaqueB = createOpaqueToken();
+t("session token uses 256-bit random hex", /^[a-f0-9]{64}$/.test(opaqueA));
+t("session tokens are unique", opaqueA !== opaqueB);
+const digestA = await hashOpaqueToken(opaqueA);
+t("only SHA-256 digest is stored (64 hex chars)", /^[a-f0-9]{64}$/.test(digestA) && digestA !== opaqueA);
+t("digest verification accepts correct token hash", digestMatches(digestA, await hashOpaqueToken(opaqueA)));
+t("digest verification rejects wrong token", !digestMatches(await hashOpaqueToken(opaqueB), digestA));
+let malformedToken = false; try { await hashOpaqueToken("short"); } catch { malformedToken = true; }
+t("malformed opaque token rejected", malformedToken);
+t("malformed digest rejected", !digestMatches("bad", digestA));
+
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }
 console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);

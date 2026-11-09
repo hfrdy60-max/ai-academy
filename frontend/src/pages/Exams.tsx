@@ -6,12 +6,12 @@ import type { QuizItem } from "../types/course";
 
 type Item = { courseId:string; courseTitle:string; lessonTitle:string; question:QuizItem };
 export default function Exams() {
-  const { courses, loading, error } = useCourseList();
+  const { courses, error } = useCourseList();
   const items = useMemo<Item[]>(() => (courses ?? []).flatMap(c => c.chapters.flatMap(ch => ch.lessons.flatMap(l => (l.content?.quiz ?? []).map(question => ({courseId:c.id,courseTitle:c.title,lessonTitle:l.title,question}))))), [courses]);
   const [answers,setAnswers]=useState<Record<number,number>>({});
   const [submitted,setSubmitted]=useState(false);
   const correct=items.reduce((n,x,i)=>n+(answers[i]===x.question.correctIndex?1:0),0);
-  if(loading) return <p className="muted" role="status">در حال بارگذاری آزمون‌ها…</p>;
+  if(courses===null) return <p className="muted" role="status">در حال بارگذاری آزمون‌ها…</p>;
   return <div className="mx-auto max-w-3xl space-y-5">
     <header><h1 className="text-xl font-extrabold md:text-2xl">آزمون‌های من</h1><p className="muted mt-1 text-sm">سؤال‌های چهارگزینه‌ای تولیدشده در درس‌های دوره‌هایت را یک‌جا تمرین کن.</p></header>
     {error && <p role="alert" className="card text-sm text-red-700">{error}</p>}

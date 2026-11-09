@@ -266,6 +266,20 @@ try { await listUserChats(corruptPayloadDb, "user_1234567890123456"); } catch (e
 t("D1 chat listing rejects corrupted stored JSON", corruptChatPayloadRejected);
 
 
+// 11c pagination normalization edge cases
+dbCalls.length = 0;
+await listUserCourses(fakeDb, "user_1234567890123456", Number.NaN);
+t("D1 course listing defaults non-finite pagination to 100", dbCalls.at(-1).values[1] === 100);
+dbCalls.length = 0;
+await listUserChats(fakeDb, "user_1234567890123456", 1.5);
+t("D1 chat listing defaults fractional pagination to 100", dbCalls.at(-1).values[1] === 100);
+dbCalls.length = 0;
+await listUserCourses(fakeDb, "user_1234567890123456", -50);
+t("D1 course listing clamps negative pagination to 1", dbCalls.at(-1).values[1] === 1);
+dbCalls.length = 0;
+await listUserChats(fakeDb, "user_1234567890123456", 500);
+t("D1 chat listing caps pagination at 200", dbCalls.at(-1).values[1] === 200);
+
 const verificationCalls = [];
 const verificationDb = {
   prepare(sql) {

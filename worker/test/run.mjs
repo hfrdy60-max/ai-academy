@@ -137,7 +137,21 @@ t("malformed opaque token rejected", malformedToken);
 t("malformed digest rejected", !digestMatches("bad", digestA));
 
 
- // 11 D1 repository contract tests (mock D1; no remote database is contacted)
+ 
+// 10b additional token and email edge cases
+let whitespaceEmailRejected = false;
+try { normalizeEmail("   "); } catch (error) { whitespaceEmailRejected = error.message === "invalid_email"; }
+t("blank email is rejected after trimming", whitespaceEmailRejected);
+let oversizedEmailRejected = false;
+try { normalizeEmail("a".repeat(250) + "@b.co"); } catch (error) { oversizedEmailRejected = error.message === "invalid_email"; }
+t("email exceeding the 254-character limit is rejected", oversizedEmailRejected);
+let embeddedWhitespaceRejected = false;
+try { normalizeEmail("student @example.com"); } catch (error) { embeddedWhitespaceRejected = error.message === "invalid_email"; }
+t("email containing embedded whitespace is rejected", embeddedWhitespaceRejected);
+t("digest comparison accepts equivalent uppercase hex", digestMatches(digestA.toUpperCase(), digestA));
+t("digest comparison rejects unequal fixed-size digests", !digestMatches("a".repeat(64), "b".repeat(64)));
+
+// 11 D1 repository contract tests (mock D1; no remote database is contacted)
 const dbCalls = [];
 const fakeDb = {
   prepare(sql) {

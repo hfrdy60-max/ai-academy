@@ -160,6 +160,20 @@ let shortUserIdRejected = false;
 try { await insertUser(fakeDb, "short", "student@example.com", 100); } catch { shortUserIdRejected = true; }
 t("D1 user creation enforces the schema user-id length", shortUserIdRejected);
 dbCalls.length = 0;
+const invalidOwnerOps = [
+  () => createSession(fakeDb, digestA, "short", 100, 200),
+  () => revokeSession(fakeDb, digestA, -1),
+  () => putUserCourse(fakeDb, "short", "course-1", {}, 300),
+  () => listUserCourses(fakeDb, "short"),
+  () => putUserChat(fakeDb, "short", "thread-1", {}, 400),
+  () => listUserChats(fakeDb, "short")
+];
+let invalidOwnerRejected = 0;
+for (const op of invalidOwnerOps) {
+  try { await op(); } catch (error) { if (error.message === "invalid_user_id") invalidOwnerRejected++; }
+}
+t("user-scoped writes and reads reject malformed owner IDs before database access", invalidOwnerRejected === 5 && dbCalls.length === 0);
+dbCalls.length = 0;
 await createSession(fakeDb, digestA, "user_1234567890123456", 100, 200);
 t("D1 session stores token digest, user id and bounded expiry", dbCalls.at(-1).values.join("|") === [digestA,"user_1234567890123456",100,200].join("|"));
 let invalidExpiry = false; try { await createSession(fakeDb, digestA, "user_1234567890123456", 200, 100); } catch { invalidExpiry = true; }

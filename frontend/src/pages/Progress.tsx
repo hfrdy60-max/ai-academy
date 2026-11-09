@@ -27,11 +27,12 @@ function readLocalResults<T extends { id: string; date: number }>(key: string, v
 }
 
 function printCertificate(title: string, subject: string, completedAt: string) {
-  const popup = window.open("", "_blank", "noopener,noreferrer");
+  const popup = window.open("", "_blank");
   if (!popup) {
     window.alert("مرورگر اجازه باز کردن پنجره گواهی را نداد. پنجره‌های بازشو را برای این سایت مجاز کنید.");
     return;
   }
+  popup.opener = null;
   const safe = (value: string) => value.replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] ?? ch));
   popup.document.write(`<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>گواهی یادگیری</title><style>
     *{box-sizing:border-box}body{margin:0;padding:32px;background:#f1f5f9;color:#172554;font-family:Tahoma,Arial,sans-serif}.paper{max-width:900px;min-height:580px;margin:4vh auto;padding:56px 42px;border:10px double #64748b;background:white;text-align:center;display:flex;flex-direction:column;justify-content:center;gap:22px}.label{font-size:18px;color:#475569}.title{font-size:34px;font-weight:bold;line-height:1.7}.course{font-size:27px;font-weight:bold;color:#4338ca}.meta{font-size:15px;color:#475569}.disclaimer{font-size:12px;color:#64748b;margin-top:20px}@media print{body{padding:0;background:white}.paper{margin:0;max-width:none;min-height:100vh;break-inside:avoid}}

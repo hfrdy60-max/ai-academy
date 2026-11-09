@@ -50,8 +50,8 @@ export async function importData(text: string): Promise<{ courses: number; chats
   if (rawCourses.length > 500 || rawChats.length > 2000) throw new Error("تعداد داده‌ها بیش از حد مجاز است.");
   const courses = rawCourses.map((c, i) => validateCourse(c, i));
   const chats = rawChats.map((c, i) => validateThread(c, i));
-  const examResults = validateResults(r.examResults, "exam");
-  const gameResults = validateResults(r.gameResults, "game");
+  const examResults = r.examResults === undefined ? readLocalArray(EXAM_KEY) : validateResults(r.examResults, "exam");
+  const gameResults = r.gameResults === undefined ? readLocalArray(GAME_KEY) : validateResults(r.gameResults, "game");
   let profile: Profile | undefined;
   if (r.profile !== undefined) {
     if (!r.profile || typeof r.profile !== "object" || Array.isArray(r.profile)) throw new Error("پروفایل فایل پشتیبان نامعتبر است.");

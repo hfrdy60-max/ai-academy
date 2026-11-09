@@ -9,10 +9,12 @@ import EditCourse from "./pages/EditCourse";
 import Teacher from "./pages/Teacher";
 import Settings from "./pages/Settings";
 import Progress from "./pages/Progress";
+import Exams from "./pages/Exams";
+import Games from "./pages/Games";
 import ComingSoon from "./pages/ComingSoon";
 import { NAV } from "./nav";
 
-const BUILT = new Set(["/", "/courses", "/create", "/teacher", "/settings", "/progress"]);
+const BUILT = new Set(["/", "/courses", "/create", "/teacher", "/settings", "/progress", "/exams", "/games"]);
 
 export default function App() {
   return (
@@ -27,6 +29,8 @@ export default function App() {
         <Route path="/teacher" element={<Teacher />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/progress" element={<Progress />} />
+        <Route path="/exams" element={<Exams />} />
+        <Route path="/games" element={<Games />} />
         {NAV.filter(n => !BUILT.has(n.path)).map(n => <Route key={n.path} path={n.path} element={<ComingSoon />} />)}
         <Route path="*" element={<ComingSoon />} />
       </Route>

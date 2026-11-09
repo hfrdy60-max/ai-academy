@@ -151,6 +151,21 @@ t("email containing embedded whitespace is rejected", embeddedWhitespaceRejected
 t("digest comparison accepts equivalent uppercase hex", digestMatches(digestA.toUpperCase(), digestA));
 t("digest comparison rejects unequal fixed-size digests", !digestMatches("a".repeat(64), "b".repeat(64)));
 
+// 11a repository boundary validation
+dbCalls.length = 0;
+let invalidCourseIdRejected = false;
+try { await putUserCourse(fakeDb, "user_1234567890123456", "", {}, 10); } catch (error) { invalidCourseIdRejected = error.message === "invalid_record_id"; }
+t("D1 course write rejects an empty record ID before database access", invalidCourseIdRejected && dbCalls.length === 0);
+let invalidChatIdRejected = false;
+try { await putUserChat(fakeDb, "user_1234567890123456", "x".repeat(129), {}, 10); } catch (error) { invalidChatIdRejected = error.message === "invalid_record_id"; }
+t("D1 chat write rejects an oversized record ID before database access", invalidChatIdRejected && dbCalls.length === 0);
+let invalidCourseClockRejected = false;
+try { await putUserCourse(fakeDb, "user_1234567890123456", "course-1", {}, Number.POSITIVE_INFINITY); } catch (error) { invalidCourseClockRejected = error.message === "invalid_timestamp"; }
+t("D1 course write rejects non-finite timestamps before database access", invalidCourseClockRejected && dbCalls.length === 0);
+let invalidChatClockRejected = false;
+try { await putUserChat(fakeDb, "user_1234567890123456", "thread-1", {}, -1); } catch (error) { invalidChatClockRejected = error.message === "invalid_timestamp"; }
+t("D1 chat write rejects negative timestamps before database access", invalidChatClockRejected && dbCalls.length === 0);
+
 // 11 D1 repository contract tests (mock D1; no remote database is contacted)
 const dbCalls = [];
 const fakeDb = {

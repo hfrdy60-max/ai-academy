@@ -6,6 +6,9 @@ import { computeStats, XP_PER_LEVEL } from "../services/stats";
 import { fa } from "../lib/format";
 import ProgressBar from "../components/ProgressBar";
 
+type ExamResult = { id: string; date: number; correct: number; total: number; percent: number };
+type GameResult = { id: string; date: number; points: number; correct: number; answered: number; bestStreak: number };
+
 const BADGES = [
   { at: 1, title: "شروع یادگیری", detail: "تکمیل اولین درس" },
   { at: 5, title: "پنج قدم جلوتر", detail: "تکمیل ۵ درس" },
@@ -14,32 +17,68 @@ const BADGES = [
   { at: 50, title: "استاد تلاش", detail: "تکمیل ۵۰ درس" }
 ];
 
+function readLocalResults<T extends { id: string; date: number }>(key: string, valid: (x: unknown) => x is T): T[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value.filter(valid).slice(0, 20) : [];
+  } catch {
+    return [];
+  }
+}
+
+function isExamResult(x: unknown): x is ExamResult {
+  if (!x || typeof x !== "object") return false;
+  const r = x as Record<string, unknown>;
+  return typeof r.id === "string" && typeof r.date === "number" &&
+    typeof r.correct === "number" && typeof r.total === "number" && typeof r.percent === "number";
+}
+
+function isGameResult(x: unknown): x is GameResult {
+  if (!x || typeof x !== "object") return false;
+  const r = x as Record<string, unknown>;
+  return typeof r.id === "string" && typeof r.date === "number" &&
+    typeof r.points === "number" && typeof r.correct === "number" &&
+    typeof r.answered === "number" && typeof r.bestStreak === "number";
+}
+
 export default function Progress() {
   const { courses, error } = useCourseList();
   const list = courses ?? [];
   const stats = useMemo(() => computeStats(list), [list]);
   const totals = useMemo(() => list.map(c => ({ course: c, ...courseProgress(c) })), [list]);
+  const examResults = useMemo(() => readLocalResults<ExamResult>("ai-academy:exam-results:v1", isExamResult), []);
+  const gameResults = useMemo(() => readLocalResults<GameResult>("ai-academy:game-results:v1", isGameResult), []);
   const totalLessons = totals.reduce((n, x) => n + x.total, 0);
   const completed = totals.reduce((n, x) => n + x.done, 0);
   const earned = BADGES.filter(b => stats.totalCompleted >= b.at);
+  const bestExam = examResults.reduce((best, x) => Math.max(best, x.percent), 0);
+  const bestGame = gameResults.reduce((best, x) => Math.max(best, x.points), 0);
 
   return (
     <div className="space-y-5">
       <header>
         <h1 className="text-xl font-extrabold md:text-2xl">پیشرفت من</h1>
-        <p className="muted mt-1 text-sm">گزارش یادگیری بر اساس درس‌هایی که در این دستگاه تکمیل کرده‌اید.</p>
+        <p className="muted mt-1 text-sm">گزارش یادگیری بر اساس درس‌ها، آزمون‌ها و بازی‌های ثبت‌شده روی همین دستگاه.</p>
       </header>
       {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{error}</p>}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <section className="card"><p className="muted text-xs">درس‌های تکمیل‌شده</p><p className="mt-2 text-2xl font-extrabold">{fa(completed)}</p></section>
         <section className="card"><p className="muted text-xs">کل درس‌ها</p><p className="mt-2 text-2xl font-extrabold">{fa(totalLessons)}</p></section>
-        <section className="card"><p className="muted text-xs">امتیاز</p><p className="mt-2 text-2xl font-extrabold">{fa(stats.xp)} XP</p></section>
+        <section className="card"><p className="muted text-xs">امتیاز یادگیری</p><p className="mt-2 text-2xl font-extrabold">{fa(stats.xp)} XP</p></section>
         <section className="card"><p className="muted text-xs">سطح فعلی</p><p className="mt-2 text-2xl font-extrabold">{fa(stats.level)}</p></section>
       </div>
       <section className="card">
         <div className="flex items-center justify-between gap-3"><h2 className="font-bold">پیشرفت کلی</h2><span className="text-sm font-bold">{fa(totalLessons ? Math.round(completed / totalLessons * 100) : 0)}٪</span></div>
         <div className="mt-3"><ProgressBar value={completed} max={totalLessons || 1} label="درصد تکمیل همه دوره‌ها" /></div>
         <p className="muted mt-2 text-xs">برای رسیدن به سطح بعدی {fa(XP_PER_LEVEL - stats.xpInLevel)} امتیاز دیگر لازم دارید.</p>
+      </section>
+      <section className="card space-y-3">
+        <div className="flex items-center justify-between gap-2"><h2 className="font-bold">عملکرد آزمون و بازی</h2><div className="flex gap-3 text-xs"><Link className="text-indigo-600 underline dark:text-indigo-300" to="/exams">آزمون‌ها</Link><Link className="text-indigo-600 underline dark:text-indigo-300" to="/games">بازی‌ها</Link></div></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-slate-100 p-3 dark:bg-white/5"><p className="muted text-xs">تعداد آزمون‌ها</p><p className="mt-1 text-xl font-extrabold">{fa(examResults.length)}</p><p className="muted mt-1 text-xs">بهترین نمره: {fa(bestExam)}٪</p></div>
+          <div className="rounded-xl bg-slate-100 p-3 dark:bg-white/5"><p className="muted text-xs">بازی‌های ثبت‌شده</p><p className="mt-1 text-xl font-extrabold">{fa(gameResults.length)}</p><p className="muted mt-1 text-xs">بالاترین امتیاز: {fa(bestGame)}</p></div>
+        </div>
+        <p className="muted text-xs">سوابق آزمون و بازی فقط در همین مرورگر و دستگاه ذخیره می‌شوند و با حساب دیگری همگام‌سازی نمی‌شوند.</p>
       </section>
       <section className="card space-y-3">
         <h2 className="font-bold">پیشرفت دوره‌ها</h2>

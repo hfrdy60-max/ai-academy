@@ -32,7 +32,8 @@ function assertId(value: string, code: string): void {
 }
 
 function assertUserId(value: string): void {
-  if (typeof value !== "string" || value.length < 16 || value.length > 80) {
+  if (typeof value !== "string" || value.length < 16 || value.length > 80 ||
+      value.trim().length === 0 || /[\u0000-\u001f\u007f]/.test(value)) {
     throw new Error("invalid_user_id");
   }
 }

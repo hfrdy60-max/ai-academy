@@ -1,5 +1,5 @@
 import http from "node:http";
-import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, saveEmailVerification, consumeEmailVerification } from "./.build/worker.mjs";
+import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, saveEmailVerification, consumeEmailVerification, issueSession, resolveSession, revokeSessionToken, DEFAULT_SESSION_TTL_MS, MAX_SESSION_TTL_MS } from "./.build/worker.mjs";
 
 // ---- fake "OpenRouter" upstream (tests OUR adapter; it is NOT the real service) ----
 let mode = "ok", calls = 0; const seen = [];
@@ -212,6 +212,22 @@ t("Wrong email token is rejected and increments bounded attempts", !verification
 let invalidVerificationExpiry = false;
 try { await saveEmailVerification(verificationDb, "student@example.com", digestA, 2000, 1000); } catch { invalidVerificationExpiry = true; }
 t("Email verification rejects invalid expiry windows", invalidVerificationExpiry);
+
+// 12 internal session service (no public auth endpoints or cookie policy)
+dbCalls.length = 0;
+const issued = await issueSession(fakeDb, "user_1234567890123456", 5000);
+t("session service issues a random token and seven-day default expiry", /^[a-f0-9]{64}$/.test(issued.token) && issued.expiresAt === 5000 + DEFAULT_SESSION_TTL_MS);
+t("session service persists only the token hash", dbCalls.at(-1).values[0] === await hashOpaqueToken(issued.token) && dbCalls.at(-1).values[0] !== issued.token);
+dbCalls.length = 0;
+const resolved = await resolveSession(fakeDb, issued.token, 6000);
+t("session service resolves token through its digest", resolved?.user_id === "user_1234567890123456" && dbCalls.at(-1).values[0] === await hashOpaqueToken(issued.token));
+t("invalid session token safely resolves to null", await resolveSession(fakeDb, "not-a-token", 6000) === null);
+dbCalls.length = 0;
+await revokeSessionToken(fakeDb, issued.token, 7000);
+t("session service revokes by digest, never raw token", dbCalls.at(-1).values[1] === await hashOpaqueToken(issued.token) && dbCalls.at(-1).values[1] !== issued.token);
+let excessiveTtlRejected = false;
+try { await issueSession(fakeDb, "user_1234567890123456", 5000, MAX_SESSION_TTL_MS + 1); } catch { excessiveTtlRejected = true; }
+t("session service caps session lifetime at 30 days", excessiveTtlRejected);
 
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }

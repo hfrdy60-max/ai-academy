@@ -90,4 +90,9 @@ export async function importData(text: string): Promise<{ courses: number; chats
   return { courses: courses.length, chats: chats.length, exams: examResults.length, games: gameResults.length };
 }
 
-export const deleteAllData = (): Promise<void> => clearAllData();
+/** Remove IndexedDB data and result histories stored separately in localStorage. */
+export async function deleteAllData(): Promise<void> {
+  await clearAllData();
+  localStorage.removeItem(EXAM_KEY);
+  localStorage.removeItem(GAME_KEY);
+}

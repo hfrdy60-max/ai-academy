@@ -28,11 +28,14 @@ const list = (v: unknown, maxItems: number, maxLen: number): string[] =>
   Array.isArray(v) ? v.map(x => text(x, maxLen)).filter(Boolean).slice(0, maxItems) : [];
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
-export function validateOutline(raw: unknown): Outline {
+export function validateOutline(raw: unknown, level: "beginner" | "intermediate" | "advanced" = "beginner"): Outline {
   if (!isObj(raw) || !Array.isArray(raw.chapters)) throw bad();
   const chapters = raw.chapters.slice(0, 12).map(c => isObj(c) ? { title: text(c.title, 150), lessons: list(c.lessons, 10, 150) } : null)
     .filter((c): c is { title: string; lessons: string[] } => !!c && !!c.title && c.lessons.length > 0);
-  if (chapters.length === 0) throw bad();
+  const totalLessons = chapters.reduce((sum, chapter) => sum + chapter.lessons.length, 0);
+  const minimum = level === "advanced" ? 50 : level === "intermediate" ? 40 : 30;
+  if (chapters.length === 0 || totalLessons < minimum) throw bad();
+  if (level === "advanced" && totalLessons !== 50) throw bad();
   return { chapters };
 }
 

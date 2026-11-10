@@ -37,7 +37,14 @@ function json(data: unknown, status: number, extra: Record<string, string>): Res
 async function runTask(task: Task, body: unknown, env: Env) {
   const provider = getProvider(env);
   const model = modelFor(env, task);
-  const s = SETTINGS[task];
+  const s = task === "lesson"
+    ? (() => {
+        const bodyObj = body && typeof body === "object" ? body as Record<string, unknown> : {};
+        const courseObj = bodyObj.course && typeof bodyObj.course === "object" ? bodyObj.course as Record<string, unknown> : {};
+        const courseLevel = courseObj.level;
+        return { maxTokens: courseLevel === "advanced" ? 8000 : courseLevel === "intermediate" ? 6000 : 4500, temperature: SETTINGS.lesson.temperature };
+      })()
+    : SETTINGS[task];
   let messages;
   let finish: (t: string) => unknown;
   if (task === "outline") { messages = outlineMessages(parseOutline(body).course); finish = t => validateOutline(extractJson(t)); }

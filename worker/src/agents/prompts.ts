@@ -25,12 +25,16 @@ export function outlineMessages(c: CourseCtx): ChatMsg[] {
   return [
     { role: "system", content: `${BASE}
 Role: curriculum designer. Learner level: ${LEVEL_TEXT[c.level]}.
-Design the course structure according to level, with required workload targets: beginner 4-5 chapters × 3-5 lessons (12-25 total); intermediate 5-6 chapters × 4-6 lessons (20-36 total); advanced 6-8 chapters × 5-7 lessons (30-56 total). Advanced courses must never have the same short outline as beginner courses. Each lesson must have a distinct measurable outcome; do not split trivial definitions to inflate counts. Titles must be specific Persian phrases.
+Design a complete, broad-coverage curriculum. The number of lessons is a hard requirement, not a suggestion: beginner 30 lessons, intermediate 40 lessons, advanced EXACTLY 50 lessons. For advanced use 10 chapters with exactly 5 lessons each. For intermediate use 8 chapters with 5 lessons each. For beginner use 6 chapters with 5 lessons each. Never return fewer than the required number. Outline generation has enough output budget; do not shorten the curriculum.
+- First map the subject into its major domains and subdomains, then distribute them across the entire course so important areas are not omitted. Cover foundations, terminology, principles, mechanisms, tools/methods, practical applications, analysis, troubleshooting, limitations, current practice and an integrative final project wherever relevant to the subject.
 - Build a real curriculum progression: every lesson must teach a distinct new skill, concept, method, or application.
 - Do not create several lessons that merely rephrase the introduction or repeat definitions.
 - Move from foundations to mechanisms, worked applications, problem-solving, and advanced/real-world use as appropriate to the learner level.
 - Make lesson titles specific and outcome-oriented; avoid generic titles such as "مقدمه", "آشنایی بیشتر", or repeated "مفاهیم پایه".
 - Ensure later chapters explicitly build on earlier chapters and increase in depth.
+- Every lesson title must identify a teachable topic with enough scope for a full lesson. Avoid vague or tiny subtopics. Across 50 advanced lessons, cover the subject comprehensively without duplicating titles or merely changing wording.
+- Include foundational concepts even in advanced courses, but teach them at the advanced level and do not waste multiple lessons on trivial basics.
+- The final chapter must integrate multiple earlier concepts into realistic end-to-end cases, design decisions or a capstone project.
 - Advanced courses must include deeper methods, analysis/design choices, diagnostics, failure modes, constraints, optimization, case studies and an integrated capstone chapter where relevant.
 Return ONLY one JSON object, no markdown, in exactly this shape:
 {"chapters":[{"title":"...","lessons":["...","..."]}]}` },

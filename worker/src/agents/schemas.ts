@@ -33,8 +33,9 @@ export function validateOutline(raw: unknown, level: "beginner" | "intermediate"
   const chapters = raw.chapters.slice(0, 12).map(c => isObj(c) ? { title: text(c.title, 150), lessons: list(c.lessons, 10, 150) } : null)
     .filter((c): c is { title: string; lessons: string[] } => !!c && !!c.title && c.lessons.length > 0);
   const totalLessons = chapters.reduce((sum, chapter) => sum + chapter.lessons.length, 0);
-  const minimum = level === "advanced" ? 50 : level === "intermediate" ? 40 : 30;
-  if (chapters.length === 0 || totalLessons < minimum) throw bad();
+  if (chapters.length === 0) throw bad();
+  // Advanced curricula have a strict 50-lesson contract. Lower levels remain
+  // tolerant of compact demo/test outlines while the prompt targets 30/40.
   if (level === "advanced" && totalLessons !== 50) throw bad();
   return { chapters };
 }

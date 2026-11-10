@@ -49,7 +49,7 @@ export function validateLesson(raw: unknown): LessonContent {
     return { question: text(q.question, 600), options, correctIndex: idx, explanation: text(q.explanation, 800) };
   }).filter((q): q is QuizItem => !!q && !!q.question);
   const lesson: LessonContent = {
-    intro: text(raw.intro, 4000), objectives: list(raw.objectives, 8, 300), explanation: text(raw.explanation, 24000),
+    intro: text(raw.intro, 4000), objectives: list(raw.objectives, 8, 300), explanation: text(raw.explanation, 36000),
     examples: list(raw.examples, 6, 2000), notes: list(raw.notes, 8, 600), exercises, quiz, summary: text(raw.summary, 2500)
   };
   if (!lesson.explanation || lesson.objectives.length === 0) throw bad();

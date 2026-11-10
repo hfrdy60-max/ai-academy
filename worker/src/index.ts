@@ -12,7 +12,7 @@ import { extractJson, validateChatReply, validateCheck, validateLesson, validate
 const MAX_BODY_BYTES = 128 * 1024;
 const TASKS: readonly Task[] = ["outline", "lesson", "chat", "check"];
 const SETTINGS: Record<Task, { maxTokens: number; temperature: number }> = {
-  outline: { maxTokens: 1500, temperature: 0.4 }, lesson: { maxTokens: 4500, temperature: 0.5 },
+  outline: { maxTokens: 6500, temperature: 0.35 }, lesson: { maxTokens: 4500, temperature: 0.5 },
   chat: { maxTokens: 1200, temperature: 0.6 }, check: { maxTokens: 600, temperature: 0.2 }
 };
 
@@ -47,7 +47,11 @@ async function runTask(task: Task, body: unknown, env: Env) {
     : SETTINGS[task];
   let messages;
   let finish: (t: string) => unknown;
-  if (task === "outline") { messages = outlineMessages(parseOutline(body).course); finish = t => validateOutline(extractJson(t)); }
+  if (task === "outline") {
+    const course = parseOutline(body).course;
+    messages = outlineMessages(course);
+    finish = t => validateOutline(extractJson(t), course.level);
+  }
   else if (task === "lesson") {
     const r = parseLesson(body);
     messages = lessonMessages(r.course, r.chapterTitle, r.lessonTitle, r.instruction); finish = t => validateLesson(extractJson(t));

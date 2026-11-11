@@ -68,6 +68,7 @@ export default function Layout() {
                   className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm dark:border-white/20">
             <Icon name={dark ? "sun" : "moon"} className="h-4 w-4" />{dark ? "حالت روشن" : "حالت تیره"}
           </button>
+          </div>
         </header>
         <main id="main" ref={mainRef} tabIndex={-1} className="mx-auto w-full max-w-5xl flex-1 p-4 pb-28 outline-none md:p-8 md:pb-8">
           <div key={pathname} className="page-enter"><Outlet /></div>

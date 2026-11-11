@@ -44,11 +44,19 @@ export function validateCourse(v: unknown, index = 0): Course {
   if (!isObj(v)) return fail(`${w}: ساختار نامعتبر است.`);
   const level = v.level as Level;
   if (!LEVEL_VALUES.includes(level)) return fail(`${w}: سطح نامعتبر است.`);
+  const chapterIds = new Set<string>();
+  const lessonIds = new Set<string>();
   const chapters: Chapter[] = arr(v.chapters, 50, `${w} (فصل‌ها)`).map((c, ci) => {
     if (!isObj(c)) return fail(`${w}، فصل ${ci + 1}: نامعتبر است.`);
+    const chapterId = s(c.id, 100, "شناسه فصل", { min: 1 });
+    if (chapterIds.has(chapterId)) return fail(`${w}، فصل ${ci + 1}: شناسه تکراری است.`);
+    chapterIds.add(chapterId);
     const lessons: Lesson[] = arr(c.lessons, 100, `${w}، فصل ${ci + 1} (درس‌ها)`).map((l, li) => {
       if (!isObj(l)) return fail(`${w}، درس ${li + 1}: نامعتبر است.`);
-      const lesson: Lesson = { id: s(l.id, 100, "شناسه درس", { min: 1 }), title: s(l.title, 150, "عنوان درس", { min: 1 }), completed: l.completed === true };
+      const lessonId = s(l.id, 100, "شناسه درس", { min: 1 });
+      if (lessonIds.has(lessonId)) return fail(`${w}، درس ${li + 1}: شناسه تکراری است.`);
+      lessonIds.add(lessonId);
+      const lesson: Lesson = { id: lessonId, title: s(l.title, 150, "عنوان درس", { min: 1 }), completed: l.completed === true };
       if (l.completedAt !== undefined) lesson.completedAt = n(l.completedAt, "زمان تکمیل");
       if (l.content !== undefined) {
         lesson.content = validateContent(l.content, `${w}، محتوای درس ${li + 1}`);
@@ -59,7 +67,7 @@ export function validateCourse(v: unknown, index = 0): Course {
       }
       return lesson;
     });
-    return { id: s(c.id, 100, "شناسه فصل", { min: 1 }), title: s(c.title, 150, "عنوان فصل", { min: 1 }), lessons };
+    return { id: chapterId, title: s(c.title, 150, "عنوان فصل", { min: 1 }), lessons };
   });
   const course: Course = {
     id: s(v.id, 100, `${w} (شناسه)`, { min: 1 }), title: s(v.title, 100, `${w} (عنوان)`, { min: 1 }),
@@ -67,7 +75,10 @@ export function validateCourse(v: unknown, index = 0): Course {
     level, goal: s(v.goal ?? "", 500, `${w} (هدف)`), chapters, isDemo: v.isDemo === true,
     createdAt: n(v.createdAt, `${w} (زمان ساخت)`), updatedAt: n(v.updatedAt, `${w} (زمان ویرایش)`)
   };
-  if (typeof v.lastLessonId === "string") course.lastLessonId = v.lastLessonId.slice(0, 100);
+  if (typeof v.lastLessonId === "string") {
+    if (!lessonIds.has(v.lastLessonId)) return fail(`${w}: شناسه آخرین درس با درس‌های دوره مطابقت ندارد.`);
+    course.lastLessonId = v.lastLessonId;
+  }
   return course;
 }
 

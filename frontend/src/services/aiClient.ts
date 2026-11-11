@@ -79,7 +79,7 @@ export interface LessonProgression {
 export interface TeacherContext { courseTitle?: string; subject?: string; goal?: string; lessonTitle?: string; lessonText?: string }
 
 export const generateOutline = (course: CourseInfo) =>
-  call<{ chapters: { title: string; lessons: string[] }[] }>("outline", { course });
+  call<{ chapters: { title: string; lessons: string[] }[] }>("outline", { course }, 180_000);
 
 export const generateLesson = (course: CourseInfo, chapterTitle: string, lessonTitle: string, instruction = "", progression?: LessonProgression) =>
   call<LessonContent>("lesson", { course, chapterTitle, lessonTitle, instruction, progression }, 210_000);

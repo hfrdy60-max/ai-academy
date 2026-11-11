@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getCachedAccount, logoutAccount } from "../services/accountService";
-import { syncAccountData } from "../services/syncService";
+import { isAccountSyncInProgress, syncAccountData } from "../services/syncService";
 import { NAV } from "../nav";
 import { useTheme } from "../hooks/useTheme";
 import Icon from "./Icon";
@@ -30,6 +30,17 @@ export default function Layout() {
   const moreBtn = useRef<HTMLButtonElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const changed = () => {
+      if (isAccountSyncInProgress()) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { void syncAccountData().catch(() => { /* manual sync remains available */ }); }, 1800);
+    };
+    window.addEventListener("ai-academy-data-change", changed);
+    return () => { window.removeEventListener("ai-academy-data-change", changed); if (timer) clearTimeout(timer); };
+  }, []);
 
   const closeMore = useCallback(() => { setMoreOpen(false); moreBtn.current?.focus(); }, []);
 

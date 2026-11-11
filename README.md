@@ -96,11 +96,19 @@ npx wrangler d1 create ai-academy-db
 npx wrangler d1 migrations apply ai-academy-db --remote
 ```
 
-**این migration هنوز روی هیچ دیتابیس ابری اجرا نشده است.** سپس در پوشه `worker` این Secretها را تنظیم کنید (فرستنده باید در Resend تأیید شده باشد):\n\n```bash\nnpx wrangler secret put RESEND_API_KEY\nnpx wrangler secret put EMAIL_FROM\nnpx wrangler secret put AUTH_PEPPER\n```\n\n`EMAIL_FROM` نمونه: `AI Academy <login@example.com>`. برای `AUTH_PEPPER` یک مقدار تصادفی بلند و منحصربه‌فرد بسازید؛ آن را در گفتگو یا مخزن قرار ندهید. پس از تنظیم binding و Secretها، Worker را دوباره deploy کنید. کدهای ایمیل ۱۰ دقیقه اعتبار دارند، تعداد تلاش‌ها محدود است و فقط هش کد و نشست در D1 ذخیره می‌شود. نشست‌ها قابل ابطال هستند و داده‌های دوره/گفتگو با شناسه کاربر محدود می‌شوند. هیچ توکن مشترکی هویت حساب کاربر نیست.
+**این migration هنوز روی هیچ دیتابیس ابری اجرا نشده است.** سپس در پوشه `worker` این Secretها را تنظیم کنید (فرستنده باید در Resend تأیید شده باشد):
+
+```bash
+npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put EMAIL_FROM
+npx wrangler secret put AUTH_PEPPER
+```
+
+`EMAIL_FROM` نمونه: `AI Academy <login@example.com>`. برای ساخت `AUTH_PEPPER` می‌توانید از `openssl rand -hex 32` استفاده کنید؛ مقدار آن را در گفتگو یا مخزن قرار ندهید. پس از تنظیم binding و Secretها، Worker را دوباره deploy کنید. کدهای ایمیل ۱۰ دقیقه اعتبار دارند، تعداد تلاش‌ها محدود است و فقط هش کد و نشست در D1 ذخیره می‌شود. نشست‌ها قابل ابطال هستند و داده‌های دوره/گفتگو با شناسه کاربر محدود می‌شوند. هیچ توکن مشترکی هویت حساب کاربر نیست.
 
 ### نکات هزینه و ایمنی
 - هر تولید درس یا گفت‌وگو ممکن است توکن مصرف کند؛ برای کلید OpenRouter سقف هزینه تنظیم کنید.
-- هر کس توکن دسترسی را داشته باشد می‌تواند از سرویس شما استفاده کند؛ آن را محرمانه نگه دارید.
+- نشست حساب کاربری مجوز دسترسی به داده‌های همان کاربر است. پشتیبانی از توکن مشترک فقط برای نسخه‌های قدیمی باقی مانده و باید پس از مهاجرت حذف شود.
 - کلید OpenRouter فقط باید در Secretهای Worker ذخیره شود و نباید به فرانت‌اند برسد.
 
 ## ساختار پروژه

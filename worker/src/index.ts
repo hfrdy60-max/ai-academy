@@ -64,33 +64,58 @@ async function runTask(task: Task, body: unknown, env: Env) {
     const r = parseChat(body);
     messages = chatMessages(r.level, r.context, r.messages); finish = t => ({ reply: validateChatReply(t) });
   }
-  let res = await provider.complete({ model, messages, maxTokens: s.maxTokens, temperature: s.temperature });
-  // A long outline can occasionally come back with a missing chapter or lesson.
-  // Validate it, then make one focused repair attempt instead of forcing the learner
-  // to restart the entire course creation flow.
+  let res;
   if (task === "outline") {
-    let outline: unknown;
+    const course = parseOutline(body).course;
+    const total = course.level === "advanced" ? 20 : course.level === "intermediate" ? 10 : 5;
+    const chapters: { title: string; lessons: string[] }[] = [];
+    // Generate five chapters per request. Smaller, ordered segments avoid output
+    // truncation and chapter-count drift on large 100-lesson curricula.
+    for (let start = 1; start <= total; start += 5) {
+      const batchMessages = outlineMessages(course, { start, count: 5 });
+      let batchResult: { title: string; lessons: string[] }[] | null = null;
+      let lastText = "";
+      for (let attempt = 0; attempt < 2 && !batchResult; attempt++) {
+        const requestMessages = attempt === 0 ? batchMessages : [
+          ...batchMessages,
+          { role: "assistant" as const, content: lastText.slice(0, 18000) },
+          { role: "user" as const, content: "اصلاح: فقط ۵ فصل همین بازه را برگردان. هر فصل دقیقاً ۵ عنوان درس غیرتکراری داشته باشد. فقط JSON معتبر و کامل." }
+        ];
+        res = await provider.complete({ model, messages: requestMessages, maxTokens: 7000, temperature: attempt ? 0.15 : 0.25 });
+        lastText = res.text;
+        try {
+          if (res.finishReason === "length") throw new Error("truncated");
+          const parsed = extractJson(res.text) as any;
+          const checked = validateOutline(parsed, "beginner");
+          if (checked.chapters.length !== 5) throw new Error("wrong batch size");
+          batchResult = checked.chapters;
+        } catch {
+          if (attempt === 1) throw new HttpError(502, "ai_outline_incomplete");
+        }
+      }
+      if (!batchResult) throw new HttpError(502, "ai_outline_incomplete");
+      chapters.push(...batchResult);
+    }
+    const outline = validateOutline({ chapters }, course.level);
+    return { data: outline, meta: { model: res!.model, finishReason: res!.finishReason ?? null, usage: res!.usage ?? null } };
+  }
+
+  res = await provider.complete({ model, messages, maxTokens: s.maxTokens, temperature: s.temperature });
+  if (task === "lesson") {
     try {
       if (res.finishReason === "length") throw new Error("truncated");
-      outline = validateOutline(extractJson(res.text), (body as any)?.course?.level);
+      return { data: finish(res.text), meta: { model: res.model, finishReason: res.finishReason ?? null, usage: res.usage ?? null } };
     } catch {
-      const level = (body as any)?.course?.level;
-      const expected = level === "advanced" ? "20 فصل و دقیقاً 100 درس" : level === "intermediate" ? "10 فصل و دقیقاً 50 درس" : "5 فصل و دقیقاً 25 درس";
+      // Ask the model to repair its own draft instead of rejecting a nearly complete lesson.
       const repairMessages = [
         ...messages,
-        { role: "assistant" as const, content: res.text.slice(0, 24000) },
-        { role: "user" as const, content: `خروجی قبلی ناقص یا نامعتبر بود. آن را اصلاح کن و فقط JSON نهایی را برگردان. الزام قطعی: ${expected}، در هر فصل دقیقاً 5 درس. همه فصل‌ها و همه عنوان درس‌ها را کامل بنویس؛ هیچ توضیحی خارج از JSON نده. ساختار دقیق: {"chapters":[{"title":"...","lessons":["...","...","...","...","..."]}]}. از خروجی قبلی فقط بخش‌های معتبر را حفظ و تکمیل کن.` }
+        { role: "assistant" as const, content: res.text.slice(0, 26000) },
+        { role: "user" as const, content: "خروجی قبلی ناقص یا کوتاه بود. همین درس را کامل و با عمق آموزشی لازم بازنویسی کن. تمام فیلدهای JSON را پر کن؛ حداقل طول توضیح و تعداد اهداف، مثال‌ها، نکته‌ها، تمرین‌ها و آزمون‌های خواسته‌شده در دستور سیستم را دقیق رعایت کن. فقط JSON معتبر برگردان و متن قبلی را خلاصه نکن." }
       ];
-      res = await provider.complete({ model, messages: repairMessages, maxTokens: 14000, temperature: 0.15 });
-      if (res.finishReason === "length") throw new HttpError(502, "ai_output_truncated");
-      outline = validateOutline(extractJson(res.text), level);
+      const repaired = await provider.complete({ model, messages: repairMessages, maxTokens: s.maxTokens, temperature: 0.2 });
+      if (repaired.finishReason === "length") throw new HttpError(502, "ai_output_truncated");
+      return { data: finish(repaired.text), meta: { model: repaired.model, finishReason: repaired.finishReason ?? null, usage: repaired.usage ?? null } };
     }
-    return { data: outline, meta: { model: res.model, finishReason: res.finishReason ?? null, usage: res.usage ?? null } };
-  }
-  // A provider may return syntactically valid but incomplete JSON when its token
-  // budget is exhausted. Do not present that as a complete lesson.
-  if (task === "lesson" && res.finishReason === "length") {
-    throw new HttpError(502, "ai_output_truncated");
   }
   return { data: finish(res.text), meta: { model: res.model, finishReason: res.finishReason ?? null, usage: res.usage ?? null } };
 }

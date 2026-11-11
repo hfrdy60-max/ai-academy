@@ -5,6 +5,9 @@ import type { Course } from "../types/course";
 import type { ChatThread } from "../types/chat";
 
 interface CloudRecord<T> { id: string; payload: T; updated_at: number }
+let syncInProgress = false;
+export function isAccountSyncInProgress(): boolean { return syncInProgress; }
+
 function mergeByUpdatedAt<T extends { id: string; updatedAt: number }>(local: T[], remote: CloudRecord<T>[]): T[] {
   const merged = new Map<string, T>();
   for (const item of remote) {
@@ -19,6 +22,9 @@ function mergeByUpdatedAt<T extends { id: string; updatedAt: number }>(local: T[
 
 /** Merge local and cloud copies by last update, then persist the merged snapshot in both places. */
 export async function syncAccountData(): Promise<{ courses: number; chats: number }> {
+  if (syncInProgress) return { courses: 0, chats: 0 };
+  syncInProgress = true;
+  try {
   const [localCourses, localChats, cloudCourses, cloudChats] = await Promise.all([
     listCourses(), listThreads(),
     accountApi<{ records: CloudRecord<Course>[] }>("/api/sync/courses", "GET"),
@@ -31,4 +37,5 @@ export async function syncAccountData(): Promise<{ courses: number; chats: numbe
   await accountApi("/api/sync/courses", "PUT", { records: courses.map(payload => ({ id: payload.id, payload })) });
   await accountApi("/api/sync/chats", "PUT", { records: chats.map(payload => ({ id: payload.id, payload })) });
   return { courses: courses.length, chats: chats.length };
+  } finally { syncInProgress = false; }
 }

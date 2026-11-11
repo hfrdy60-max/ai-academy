@@ -3,11 +3,36 @@ import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueTo
 
 // ---- fake "OpenRouter" upstream (tests OUR adapter; it is NOT the real service) ----
 let mode = "ok", calls = 0; const seen = [];
-const OUTLINE = { chapters: [{ title: "مقدمه", lessons: ["آشنایی", "مفاهیم پایه"] }, { title: "عمیق‌تر", lessons: ["تمرین"] }] };
-const LESSON = { intro: "مقدمه درس", objectives: ["هدف ۱", "هدف ۲"], explanation: "گام اول\n\nگام دوم", examples: ["مثال"], notes: ["نکته"],
-  exercises: [{ question: "پرسش؟", hint: "راهنما", sampleAnswer: "پاسخ" }],
-  quiz: [{ question: "کدام درست است؟", options: ["الف", "ب", "ج", "د"], correctIndex: 1, explanation: "چون ب" }, { question: "خراب", options: ["x", "y"], correctIndex: 9, explanation: "" }],
-  summary: "جمع‌بندی" };
+const makeOutline = level => {
+  const chapters = { beginner: 5, intermediate: 10, advanced: 20 }[level] ?? 5;
+  return { chapters: Array.from({ length: chapters }, (_, i) => ({
+    title: `فصل ${i + 1}`,
+    lessons: Array.from({ length: 5 }, (_, j) => `درس ${(i * 5) + j + 1}`)
+  })) };
+};
+const explanationFixture = Array.from({ length: 65 }, (_, i) =>
+  `در بخش آموزشی شماره ${i + 1}، ابتدا مسئله را تعریف می‌کنیم، سپس سازوکار اثرگذار را مرحله‌به‌مرحله توضیح می‌دهیم. این بخش یک نمونه مستقل برای آزمودن حداقل طول درس و حفظ ساختار آموزشی است. پس از آن، شواهد قابل مشاهده و روش تفسیر آن‌ها را بررسی می‌کنیم تا ارتباط علت و معلول روشن بماند.`
+).join("\\n\\n");
+const LESSON = {
+  intro: "در این درس یک مسئله مشخص را از مبانی لازم تا کاربرد عملی دنبال می‌کنیم و ارتباط آن را با درس‌های قبل و بعد مشخص می‌کنیم.",
+  objectives: ["شناخت سازوکار اصلی", "تحلیل علت و معلول", "تفسیر شواهد", "حل یک مسئله کاربردی"],
+  explanation: explanationFixture,
+  examples: ["مثال اول: تحلیل یک وضعیت با فرض‌های مشخص و بررسی مرحله‌به‌مرحله نتیجه.", "مثال دوم: مقایسه دو روش و توضیح معیار انتخاب هرکدام."],
+  notes: ["مقادیر نمونه صرفاً آموزشی هستند و مشخصات عمومی محسوب نمی‌شوند.", "برای تصمیم عملی باید شرایط واقعی و مستندات معتبر بررسی شوند.", "یک اندازه‌گیری به‌تنهایی همیشه علت ریشه‌ای را اثبات نمی‌کند."],
+  exercises: [
+    { question: "با داده‌های فرضی، علت محتمل را تحلیل کنید.", hint: "ابتدا فرضیه‌ها را جدا کنید.", sampleAnswer: "ابتدا شرایط را تثبیت می‌کنیم، شواهد را مقایسه می‌کنیم و فقط فرضیه‌ای را می‌پذیریم که با همه مشاهدات سازگار باشد." },
+    { question: "دو روش را با معیارهای فنی مقایسه کنید.", hint: "هزینه، دقت و محدودیت را ببینید.", sampleAnswer: "روش‌ها را بر پایه دقت، تکرارپذیری، هزینه و شرایط کاربرد مقایسه می‌کنیم و محدودیت‌های هر نتیجه را گزارش می‌دهیم." },
+    { question: "یک روش را انتخاب و معیار راستی‌آزمایی آن را مشخص کنید.", hint: "معیار باید قابل اندازه‌گیری باشد.", sampleAnswer: "روش منتخب باید با یک معیار مستقل و قابل تکرار سنجیده شود؛ سپس اختلاف نتیجه و عدم قطعیت ثبت شود." }
+  ],
+  quiz: [
+    { question: "چرا باید فرضیه‌ها را با شواهد مقایسه کرد؟", options: ["برای حذف حدس بدون پشتوانه", "برای افزایش تعداد قطعات", "برای حذف همه اندازه‌گیری‌ها", "برای نادیده‌گرفتن شرایط"], correctIndex: 0, explanation: "فرضیه معتبر باید با شواهد مشاهده‌شده سازگار باشد." },
+    { question: "یک مقدار نمونه چه جایگاهی دارد؟", options: ["استاندارد همیشگی", "عدد آموزشی با فرض مشخص", "دستور تعمیر قطعی", "دلیل کافی برای تعویض قطعه"], correctIndex: 1, explanation: "مقدار نمونه بدون مشخصات سازنده و شرایط آزمون، استاندارد عمومی نیست." },
+    { question: "اندازه‌گیری چه زمانی مفید است؟", options: ["وقتی شرایط و محدودیتش معلوم باشد", "در هر شرایطی بدون ثبت داده", "فقط پس از حدس قطعه", "وقتی نتیجه را نادیده بگیریم"], correctIndex: 0, explanation: "تفسیر اندازه‌گیری به شرایط آزمون و محدودیت ابزار وابسته است." },
+    { question: "برای تأیید نتیجه چه باید کرد؟", options: ["تکرار مستقل و معیار مشخص", "تکیه بر یک نشانه مبهم", "حذف فرضیه‌های رقیب بدون بررسی", "اعلام نتیجه بدون داده"], correctIndex: 0, explanation: "راستی‌آزمایی مستقل اعتماد به نتیجه را افزایش می‌دهد." },
+    { question: "کدام پاسخ فنی‌تر است؟", options: ["این قطعه همیشه خراب است", "نتیجه فقط در شرایط ذکرشده معتبر است", "هر عددی قابل تعمیم است", "یک علامت علت قطعی را مشخص می‌کند"], correctIndex: 1, explanation: "نتیجه مهندسی باید محدوده اعتبار و فرض‌هایش را روشن کند." }
+  ],
+  summary: "در این درس مسئله را با تعیین محدوده، شناخت سازوکار، تحلیل داده و مقایسه فرضیه‌ها بررسی کردیم. نتیجه معتبر باید به شواهد قابل اندازه‌گیری متکی باشد و محدودیت‌ها و عدم‌قطعیت آن نیز صریح گزارش شود."
+};
 const upstream = http.createServer((req, res) => {
   let b = ""; req.on("data", d => b += d); req.on("end", () => {
     calls++; const body = JSON.parse(b || "{}"); seen.push({ auth: req.headers.authorization, body });
@@ -62,17 +87,25 @@ r = await call("/api/ai/outline", { body: { course }, env: { ACCESS_TOKEN: undef
 r = await call("/api/ai/outline", { body: { course }, env: { OPENROUTER_API_KEY: undefined } }); t("AI key missing -> 503 ai_not_configured", r.status === 503 && r.json.error === "ai_not_configured");
 // 4 tasks
 reset(); r = await call("/api/ai/outline", { body: { course } });
-t("outline OK (fenced JSON parsed + validated)", r.status === 200 && r.json.data.chapters.length === 2 && r.json.meta.model === "fake/model-1");
+t("outline OK (fenced JSON parsed + validated)", r.status === 200 && r.json.data.chapters.length === 5 && r.json.data.chapters.flatMap(ch => ch.lessons).length === 25 && r.json.meta.model === "fake/model-1");
 t("token usage returned", r.json.meta.usage?.total === 15);
 t("upstream got Bearer key; key NOT in response", seen[0].auth === "Bearer sk-test-KEY" && !r.text.includes("sk-test-KEY"));
 t("model comes from config", seen[0].body.model === "openai/gpt-4o-mini");
 r = await call("/api/ai/outline", { body: { course }, env: { MODEL_OUTLINE: "vendor/special" } }); t("per-task model override works", seen.at(-1).body.model === "vendor/special");
-reset(); r = await call("/api/ai/lesson", { body: { course, chapterTitle: "مقدمه", lessonTitle: "آشنایی", instruction: "ساده‌تر" } });
-t("lesson OK", r.status === 200 && r.json.data.objectives.length === 2 && r.json.data.explanation.includes("گام دوم"));
-t("ungradable quiz item dropped, valid kept", r.json.data.quiz.length === 1 && r.json.data.quiz[0].correctIndex === 1);
+reset(); r = await call("/api/ai/lesson", { body: { course, chapterTitle: "مقدمه", lessonTitle: "آشنایی", instruction: "ساده‌تر", progression: { position: 4, total: 25, previousLessons: [{ title: "درس قبلی", summary: "تعریف و سازوکار پایه را پوشش داده‌ایم." }], nextLessons: ["درس بعدی"] } } });
+t("lesson OK and passes level-quality checks", r.status === 200 && r.json.data.objectives.length === 4 && r.json.data.explanation.length >= 2500);
+t("progression context reaches the prompt", seen[0].body.messages[1].content.includes("تعریف و سازوکار پایه") && seen[0].body.messages[1].content.includes("درس بعدی"));
+t("quiz structure is retained and fully gradable", r.json.data.quiz.length === 5 && r.json.data.quiz.every(q => q.options.length === 4));
 const sys = seen[0].body.messages[0].content;
 t("prompt: honesty rule (no internet, no invented sources)", /NO internet access/.test(sys) && /Never invent sources/.test(sys));
 t("prompt: automotive + fitness safety rules", /automotive/.test(sys) && /fitness/.test(sys));
+t("prompt: lessons form a connected learning sequence", /connected course/.test(sys) && /ارتباط با درس بعدی/.test(sys));
+reset(); r = await call("/api/ai/outline", { body: { course: { ...course, level: "intermediate" } } });
+t("intermediate outline is exactly 50 lessons", r.status === 200 && r.json.data.chapters.length === 10 && r.json.data.chapters.flatMap(ch => ch.lessons).length === 50);
+reset(); r = await call("/api/ai/outline", { body: { course: { ...course, level: "advanced" } } });
+t("advanced outline is exactly 100 lessons", r.status === 200 && r.json.data.chapters.length === 20 && r.json.data.chapters.flatMap(ch => ch.lessons).length === 100);
+reset(); r = await call("/api/ai/lesson", { body: { course: { ...course, level: "advanced" }, chapterTitle: "فصل پیشرفته", lessonTitle: "تحلیل تخصصی" } });
+t("advanced lesson passes the higher content threshold", r.status === 200 && r.json.data.explanation.length >= 8000 && r.json.data.quiz.length >= 5);
 reset(); r = await call("/api/ai/check", { body: { lessonTitle: "آشنایی", level: "beginner", question: "چرا؟", learnerAnswer: "چون" } });
 t("check OK", r.status === 200 && r.json.data.verdict === "partial");
 reset(); r = await call("/api/ai/chat", { body: { level: "beginner", context: { courseTitle: "دوره", lessonTitle: "درس" }, messages: [{ role: "user", content: "سلام" }, { role: "assistant", content: "سلام!" }, { role: "user", content: "متوجه نشدم" }] } });

@@ -12,7 +12,7 @@ const makeOutline = level => {
 };
 const explanationFixture = Array.from({ length: 65 }, (_, i) =>
   `در بخش آموزشی شماره ${i + 1}، ابتدا مسئله را تعریف می‌کنیم، سپس سازوکار اثرگذار را مرحله‌به‌مرحله توضیح می‌دهیم. این بخش یک نمونه مستقل برای آزمودن حداقل طول درس و حفظ ساختار آموزشی است. پس از آن، شواهد قابل مشاهده و روش تفسیر آن‌ها را بررسی می‌کنیم تا ارتباط علت و معلول روشن بماند.`
-).join("\\n\\n");
+).join("\n\n");
 const LESSON = {
   intro: "در این درس یک مسئله مشخص را از مبانی لازم تا کاربرد عملی دنبال می‌کنیم و ارتباط آن را با درس‌های قبل و بعد مشخص می‌کنیم.",
   objectives: ["شناخت سازوکار اصلی", "تحلیل علت و معلول", "تفسیر شواهد", "حل یک مسئله کاربردی"],
@@ -46,7 +46,10 @@ const upstream = http.createServer((req, res) => {
     let content;
     if (mode === "garbage") content = "این یک متن آزاد است و JSON نیست";
     else if (mode === "emptylesson") content = JSON.stringify({ intro: "x", objectives: [], explanation: "" });
-    else if (sys.includes("curriculum designer")) content = "```json\n" + JSON.stringify(OUTLINE) + "\n```";
+    else if (sys.includes("curriculum architect")) {
+      const level = /Level: (beginner|intermediate|advanced)/.exec(body.messages?.[1]?.content ?? "")?.[1] ?? "beginner";
+      content = "```json\\n" + JSON.stringify(makeOutline(level)) + "\\n```";
+    }
     else if (sys.includes("lesson author")) content = JSON.stringify(LESSON);
     else if (sys.includes("examiner")) content = JSON.stringify({ verdict: "partial", feedback: "تا حدی درست است" });
     else content = "این پاسخ معلم است.";

@@ -7,6 +7,7 @@ import LessonEditor from "../components/LessonEditor";
 import TeacherChat from "../components/TeacherChat";
 import { useCourse } from "../hooks/useCourses";
 import { errMsg } from "../lib/errors";
+import { fa } from "../lib/format";
 import { contentToText } from "../lib/lessonText";
 import { AiError, generateLesson } from "../services/aiClient";
 import { threadId } from "../services/chatService";
@@ -115,7 +116,7 @@ export default function LessonPage() {
       </Link>
 
       <header className="card space-y-1">
-        <p className="muted text-sm">{chapter.title}</p>
+        <p className="muted text-sm">{chapter.title} · درس {fa(progression?.position ?? 1)} از {fa(progression?.total ?? 1)}</p>
         <h1 className="text-xl font-extrabold md:text-2xl">{lesson.title}</h1>
         {course.goal && <p className="muted text-sm">هدف دوره: {course.goal}</p>}
       </header>

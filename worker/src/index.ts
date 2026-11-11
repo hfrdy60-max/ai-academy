@@ -14,7 +14,7 @@ import { extractJson, validateChatReply, validateCheck, validateLesson, validate
 const MAX_BODY_BYTES = 128 * 1024;
 const TASKS: readonly Task[] = ["outline", "lesson", "chat", "check"];
 const SETTINGS: Record<Task, { maxTokens: number; temperature: number }> = {
-  outline: { maxTokens: 9000, temperature: 0.3 }, lesson: { maxTokens: 6500, temperature: 0.4 },
+  outline: { maxTokens: 14000, temperature: 0.25 }, lesson: { maxTokens: 6500, temperature: 0.4 },
   chat: { maxTokens: 1200, temperature: 0.6 }, check: { maxTokens: 600, temperature: 0.2 }
 };
 
@@ -64,7 +64,29 @@ async function runTask(task: Task, body: unknown, env: Env) {
     const r = parseChat(body);
     messages = chatMessages(r.level, r.context, r.messages); finish = t => ({ reply: validateChatReply(t) });
   }
-  const res = await provider.complete({ model, messages, maxTokens: s.maxTokens, temperature: s.temperature });
+  let res = await provider.complete({ model, messages, maxTokens: s.maxTokens, temperature: s.temperature });
+  // A long outline can occasionally come back with a missing chapter or lesson.
+  // Validate it, then make one focused repair attempt instead of forcing the learner
+  // to restart the entire course creation flow.
+  if (task === "outline") {
+    let outline: unknown;
+    try {
+      if (res.finishReason === "length") throw new Error("truncated");
+      outline = validateOutline(extractJson(res.text), (body as any)?.course?.level);
+    } catch {
+      const level = (body as any)?.course?.level;
+      const expected = level === "advanced" ? "20 فصل و دقیقاً 100 درس" : level === "intermediate" ? "10 فصل و دقیقاً 50 درس" : "5 فصل و دقیقاً 25 درس";
+      const repairMessages = [
+        ...messages,
+        { role: "assistant" as const, content: res.text.slice(0, 24000) },
+        { role: "user" as const, content: `خروجی قبلی ناقص یا نامعتبر بود. آن را اصلاح کن و فقط JSON نهایی را برگردان. الزام قطعی: ${expected}، در هر فصل دقیقاً 5 درس. همه فصل‌ها و همه عنوان درس‌ها را کامل بنویس؛ هیچ توضیحی خارج از JSON نده. ساختار دقیق: {"chapters":[{"title":"...","lessons":["...","...","...","...","..."]}]}. از خروجی قبلی فقط بخش‌های معتبر را حفظ و تکمیل کن.` }
+      ];
+      res = await provider.complete({ model, messages: repairMessages, maxTokens: 14000, temperature: 0.15 });
+      if (res.finishReason === "length") throw new HttpError(502, "ai_output_truncated");
+      outline = validateOutline(extractJson(res.text), level);
+    }
+    return { data: outline, meta: { model: res.model, finishReason: res.finishReason ?? null, usage: res.usage ?? null } };
+  }
   // A provider may return syntactically valid but incomplete JSON when its token
   // budget is exhausted. Do not present that as a complete lesson.
   if (task === "lesson" && res.finishReason === "length") {

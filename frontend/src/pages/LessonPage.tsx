@@ -161,7 +161,7 @@ export default function LessonPage() {
         </section>
       )}
 
-      {generating && <p role="status" className="card text-sm">در حال تولید محتوای درس… این کار ممکن است تا یک دقیقه طول بکشد.</p>}
+      {generating && <p role="status" className="card text-sm">در حال تولید محتوای درس… با توجه به سطح و عمق درس ممکن است چند دقیقه طول بکشد.</p>}
       {genError && (
         <div role="alert" className="card border-red-300 text-sm text-red-800 dark:text-red-200">
           <p>{genError}</p>

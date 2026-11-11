@@ -48,7 +48,10 @@ const upstream = http.createServer((req, res) => {
     else if (mode === "emptylesson") content = JSON.stringify({ intro: "x", objectives: [], explanation: "" });
     else if (sys.includes("curriculum architect")) {
       const level = /Level: (beginner|intermediate|advanced)/.exec(body.messages?.[1]?.content ?? "")?.[1] ?? "beginner";
-      content = "```json\\n" + JSON.stringify(makeOutline(level)) + "\\n```";
+      const outline = makeOutline(level);
+      if (mode === "duplicateLesson") outline.chapters[1].lessons[0] = outline.chapters[0].lessons[0];
+      if (mode === "duplicateChapter") outline.chapters[1].title = outline.chapters[0].title;
+      content = "```json\\n" + JSON.stringify(outline) + "\\n```";
     }
     else if (sys.includes("lesson author")) content = JSON.stringify(LESSON);
     else if (sys.includes("examiner")) content = JSON.stringify({ verdict: "partial", feedback: "تا حدی درست است" });

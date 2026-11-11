@@ -86,6 +86,7 @@ export default {
       const accountResponse = await handleAccountRoute(request, env, url.pathname);
       if (accountResponse) {
         const responseHeaders = new Headers(accountResponse.headers);
+        for (const [key, value] of Object.entries(baseHeaders())) responseHeaders.set(key, value);
         for (const [key, value] of Object.entries(headers)) responseHeaders.set(key, value);
         return new Response(accountResponse.body, { status: accountResponse.status, statusText: accountResponse.statusText, headers: responseHeaders });
       }

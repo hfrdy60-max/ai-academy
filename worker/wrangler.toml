@@ -15,3 +15,12 @@ RATE_LIMIT_PER_MINUTE = "30"
 # MODEL_CHAT    = "..."
 # MODEL_CHECK   = "..."
 # MODEL_OUTLINE = "..."
+
+# Account storage is intentionally not bound until a real D1 database is created.
+# After running: npx wrangler d1 create ai-academy-db
+# Copy the returned database_id below, then uncomment this block:
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "ai-academy-db"
+# database_id = "REPLACE_WITH_REAL_DATABASE_ID"
+# migrations_dir = "migrations"

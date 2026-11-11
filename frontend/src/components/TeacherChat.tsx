@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ConfirmDialog from "./ConfirmDialog";
 import Icon from "./Icon";
 import { errMsg } from "../lib/errors";
-import { AiError } from "../services/aiClient";
+import { AiError, askTeacher } from "../services/aiClient";
 import type { TeacherContext } from "../services/aiClient";
 import { appendUser, clearThread, getReply, loadThread } from "../services/chatService";
 import type { ChatThread } from "../types/chat";
 import type { Level } from "../types/course";
+
+const COURSE_DRAFT_KEY = "ai-academy-course-draft";
 
 interface Props { threadKey: string; level: Level; context: TeacherContext; suggestions?: string[] }
 
@@ -14,6 +17,7 @@ const aiMsg = (e: unknown) => (e instanceof AiError ? e.message : errMsg(e));
 
 /** Persistent conversation with the AI teacher. History is saved in IndexedDB per thread. */
 export default function TeacherChat({ threadKey, level, context, suggestions = [] }: Props) {
+  const navigate = useNavigate();
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,6 +58,33 @@ export default function TeacherChat({ threadKey, level, context, suggestions = [
     try { const t = await getReply(thread, level, context); if (active.current === key) setThread(t); }
     catch (e) { if (active.current === key) setError(aiMsg(e)); }
     finally { if (active.current === key) setBusy(false); }
+  }
+
+  async function turnConversationIntoCourse() {
+    if (!thread || busy || !thread.some) { /* guarded below */ }
+    if (!thread || busy || !thread.messages.some(m => m.role === "user")) return;
+    setBusy(true); setError(null);
+    try {
+      const instruction = `از درخواست‌های من در این گفتگو، مشخصات یک دوره آموزشی را استخراج کن. فقط یک شیء JSON معتبر و بدون markdown برگردان با این کلیدها: {"title":"عنوان کوتاه دوره","subject":"موضوع اصلی","level":"beginner|intermediate|advanced","goal":"هدف یادگیری روشن و قابل سنجش","description":"توضیح کامل محدوده موضوعات، پیش‌نیازها، سرفصل‌های مورد انتظار و مهارت‌های پایانی در حداکثر ۱۰۰۰ نویسه"}. سطح صریح من را حفظ کن؛ اگر نگفته‌ام از پیچیدگی درخواست استنباط کن. همه متن‌ها فارسی باشند.`;
+      const history = thread.messages.slice(-16).map(m => ({ role: m.role, content: m.content }));
+      const raw = await askTeacher(level, context, [...history, { role: "user", content: instruction }]);
+      const match = raw.match(/\\{[\\s\\S]*\\}/);
+      if (!match) throw new Error("مشخصات دوره استخراج نشد؛ درخواست ساخت دوره را واضح‌تر بیان کنید.");
+      const draft = JSON.parse(match[0]) as Record<string, unknown>;
+      const title = typeof draft.title === "string" ? draft.title.trim() : "";
+      const subject = typeof draft.subject === "string" ? draft.subject.trim() : "";
+      if (!title || !subject) throw new Error("عنوان یا موضوع دوره به‌درستی تشخیص داده نشد.");
+      const pickedLevel: Level = draft.level === "advanced" || draft.level === "intermediate" ? draft.level : "beginner";
+      sessionStorage.setItem(COURSE_DRAFT_KEY, JSON.stringify({
+        title: title.slice(0, 100), subject: subject.slice(0, 100), level: pickedLevel,
+        goal: typeof draft.goal === "string" ? draft.goal.slice(0, 500) : "",
+        description: typeof draft.description === "string" ? draft.description.slice(0, 1000) : "",
+        structure: "ai"
+      }));
+      navigate("/create");
+    } catch (e) {
+      setError(e instanceof AiError ? e.message : e instanceof Error ? e.message : "تبدیل گفتگو ناموفق بود.");
+    } finally { setBusy(false); }
   }
 
   async function doClear() {
@@ -101,6 +132,15 @@ export default function TeacherChat({ threadKey, level, context, suggestions = [
         </div>
         <button type="submit" className="btn btn-primary" disabled={busy || !thread || !text.trim()} aria-label="ارسال پیام"><Icon name="send" className="h-4 w-4" />ارسال</button>
       </form>
+
+      {thread && thread.messages.some(m => m.role === "user") && (
+        <div className="rounded-xl border border-indigo-300/40 bg-indigo-500/5 p-3 space-y-2">
+          <p className="text-sm leading-6">درخواست دوره‌ات را در گفتگو توضیح بده؛ معلم عنوان، موضوع، سطح، هدف و توضیحات را استخراج می‌کند و فرم ساخت دوره را پر می‌کند.</p>
+          <button type="button" className="btn btn-primary w-full" disabled={busy} onClick={() => void turnConversationIntoCourse()}>
+            تبدیل گفتگو به فرم ساخت دوره
+          </button>
+        </div>
+      )}
 
       {thread && thread.messages.length > 0 && (
         <button type="button" className="muted text-xs underline" onClick={() => setConfirmClear(true)}>پاک کردن این گفتگو</button>

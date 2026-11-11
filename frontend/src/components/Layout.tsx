@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getCachedAccount, logoutAccount } from "../services/accountService";
+import { syncAccountData } from "../services/syncService";
 import { NAV } from "../nav";
 import { useTheme } from "../hooks/useTheme";
 import Icon from "./Icon";
@@ -24,6 +25,8 @@ export default function Layout() {
   const account = getCachedAccount();
   const { pathname } = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
   const moreBtn = useRef<HTMLButtonElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
@@ -64,11 +67,13 @@ export default function Layout() {
           <span className="flex items-center gap-2 font-extrabold md:hidden">
             <Icon name="cap" className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />{APP_NAME}
           </span>
-          <div className="flex items-center gap-2">\n          {account && <span className="hidden max-w-44 truncate text-xs text-slate-500 sm:inline" dir="ltr">{account.email}</span>}\n          <button type="button" onClick={() => { void logoutAccount().finally(() => navigate("/login", { replace: true })); }} className="btn btn-ghost min-h-10 text-xs">خروج</button>\n          <button type="button" onClick={toggle} aria-pressed={dark}
+          <div className="flex items-center gap-2">\n          {account && <span className="hidden max-w-44 truncate text-xs text-slate-500 sm:inline" dir="ltr">{account.email}</span>}
+          <button type="button" disabled={syncing} onClick={() => { setSyncing(true); setSyncMessage(""); void syncAccountData().then(r => setSyncMessage(`${r.courses} دوره و ${r.chats} گفتگو همگام شد.`)).catch(e => setSyncMessage(e instanceof Error ? e.message : "همگام‌سازی ناموفق بود.")).finally(() => setSyncing(false)); }} className="btn btn-ghost min-h-10 text-xs">{syncing ? "در حال همگام‌سازی…" : "همگام‌سازی"}</button>\n          <button type="button" onClick={() => { void logoutAccount().finally(() => navigate("/login", { replace: true })); }} className="btn btn-ghost min-h-10 text-xs">خروج</button>\n          <button type="button" onClick={toggle} aria-pressed={dark}
                   className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm dark:border-white/20">
             <Icon name={dark ? "sun" : "moon"} className="h-4 w-4" />{dark ? "حالت روشن" : "حالت تیره"}
           </button>
           </div>
+          {syncMessage && <span className="px-3 pb-1 text-xs text-slate-500" role="status">{syncMessage}</span>}
         </header>
         <main id="main" ref={mainRef} tabIndex={-1} className="mx-auto w-full max-w-5xl flex-1 p-4 pb-28 outline-none md:p-8 md:pb-8">
           <div key={pathname} className="page-enter"><Outlet /></div>

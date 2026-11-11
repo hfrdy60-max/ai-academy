@@ -34,7 +34,7 @@ export async function saveProfile(p: Profile): Promise<Profile> {
 
 const envUrl = (): string => {
   const v = import.meta.env?.VITE_WORKER_URL; // public Worker address only, never a key
-  return typeof v === "string" ? v : "";
+  return typeof v === "string" && v ? v : "https://ai-academy-api.hfrdy60.workers.dev";
 };
 
 export async function getAiSettings(): Promise<AiSettings> {

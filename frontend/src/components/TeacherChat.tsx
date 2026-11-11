@@ -61,7 +61,6 @@ export default function TeacherChat({ threadKey, level, context, suggestions = [
   }
 
   async function turnConversationIntoCourse() {
-    if (!thread || busy || !thread.some) { /* guarded below */ }
     if (!thread || busy || !thread.messages.some(m => m.role === "user")) return;
     setBusy(true); setError(null);
     try {

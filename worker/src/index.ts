@@ -42,7 +42,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
         const bodyObj = body && typeof body === "object" ? body as Record<string, unknown> : {};
         const courseObj = bodyObj.course && typeof bodyObj.course === "object" ? bodyObj.course as Record<string, unknown> : {};
         const courseLevel = courseObj.level;
-        return { maxTokens: courseLevel === "advanced" ? 8000 : courseLevel === "intermediate" ? 6000 : 4500, temperature: SETTINGS.lesson.temperature };
+        return { maxTokens: courseLevel === "advanced" ? 12000 : courseLevel === "intermediate" ? 7000 : 4500, temperature: SETTINGS.lesson.temperature };
       })()
     : SETTINGS[task];
   let messages;
@@ -54,7 +54,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
   }
   else if (task === "lesson") {
     const r = parseLesson(body);
-    messages = lessonMessages(r.course, r.chapterTitle, r.lessonTitle, r.instruction); finish = t => validateLesson(extractJson(t));
+    messages = lessonMessages(r.course, r.chapterTitle, r.lessonTitle, r.instruction); finish = t => validateLesson(extractJson(t), r.course.level);
   } else if (task === "check") {
     const r = parseCheck(body);
     messages = checkMessages(r.level, r.lessonTitle, r.question, r.learnerAnswer, r.sampleAnswer); finish = t => validateCheck(extractJson(t));

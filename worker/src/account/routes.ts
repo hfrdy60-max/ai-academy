@@ -2,7 +2,7 @@ import type { Env } from "../types";
 import { HttpError } from "../security/errors";
 import { allowRequest } from "../security/rateLimit";
 import { readJsonBody, obj, str } from "../security/validate";
-import { createOpaqueToken, hashOpaqueToken, normalizeEmail } from "./crypto";
+import { normalizeEmail } from "./crypto";
 import { findUserByEmail, insertUser, saveEmailVerification, consumeEmailVerification, putUserCourse, listUserCourses, putUserChat, listUserChats } from "./repository";
 import { issueSession, resolveSession, revokeSessionToken } from "./session";
 

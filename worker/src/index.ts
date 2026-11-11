@@ -63,6 +63,11 @@ async function runTask(task: Task, body: unknown, env: Env) {
     messages = chatMessages(r.level, r.context, r.messages); finish = t => ({ reply: validateChatReply(t) });
   }
   const res = await provider.complete({ model, messages, maxTokens: s.maxTokens, temperature: s.temperature });
+  // A provider may return syntactically valid but incomplete JSON when its token
+  // budget is exhausted. Do not present that as a complete lesson.
+  if (task === "lesson" && res.finishReason === "length") {
+    throw new HttpError(502, "ai_output_truncated");
+  }
   return { data: finish(res.text), meta: { model: res.model, finishReason: res.finishReason ?? null, usage: res.usage ?? null } };
 }
 

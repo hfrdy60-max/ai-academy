@@ -38,7 +38,7 @@ const genericPlan = (): Plan[] =>
 function validateGeneratedOutline(outline: Plan[], level: Level): Plan[] {
   const expected = { beginner: 5, intermediate: 10, advanced: 20 }[level];
   const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase("fa")
-    .replace(/[\u200c\u200d\s\u0640]/g, "").replace(/[\\p{P}\\p{S}]/gu, "");
+    .replace(/[\u200c\u200d\s\u0640]/g, "").replace(/[\p{P}\p{S}]/gu, "");
   if (!Array.isArray(outline) || outline.length !== expected) {
     throw new Error(`ساختار دوره ناقص است؛ سطح انتخابی به ${fa(expected)} فصل و هر فصل به ۵ درس نیاز دارد. دوباره طراحی کنید.`);
   }

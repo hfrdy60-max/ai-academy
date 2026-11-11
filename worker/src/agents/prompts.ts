@@ -21,12 +21,14 @@ const BASE = `You are the teacher inside "AI Academy", a Persian-language learni
 const courseBlock = (c: CourseCtx) =>
   `<data>\nCourse title: ${c.title}\nSubject: ${c.subject}\nLevel: ${c.level}\nLearning goal: ${c.goal || "(none)"}\nDescription: ${c.description || "(none)"}\n</data>`;
 
-export function outlineMessages(c: CourseCtx): ChatMsg[] {
+export function outlineMessages(c: CourseCtx, range?: { start: number; count: number }): ChatMsg[] {
   const plan = {
     beginner: { chapters: 5, lessons: 25 },
     intermediate: { chapters: 10, lessons: 50 },
     advanced: { chapters: 20, lessons: 100 }
   }[c.level];
+  const batch = range ?? { start: 1, count: plan.chapters };
+  const isFull = batch.start === 1 && batch.count === plan.chapters;
   return [
     { role: "system", content: `${BASE}
 Role: expert curriculum architect. Learner level: ${LEVEL_TEXT[c.level]}.
@@ -35,7 +37,9 @@ HARD STRUCTURE CONTRACT — follow exactly:
 - intermediate: EXACTLY 10 chapters × 5 lessons = 50 lessons.
 - advanced: EXACTLY 20 chapters × 5 lessons = 100 lessons.
 - Every chapter must contain exactly 5 lessons. Do not add an introduction chapter outside this count, omit a capstone, or return a partial outline.
-- Count the chapters and lessons before returning JSON. If the counts are wrong, revise the outline until they match.
+- This request is curriculum segment chapters ${batch.start} through ${batch.start + batch.count - 1} of ${plan.chapters}. Return ONLY these ${batch.count} chapters, in their correct global sequence positions. Do not return chapters from other segments.
+- The complete course still has ${plan.chapters} chapters and ${plan.lessons} lessons. Preserve continuity across the global sequence; chapter ${plan.chapters} is the capstone.
+- Count the requested chapters and lessons before returning JSON. If the counts are wrong, revise the outline until they match.
 Curriculum design:
 - First map the subject into its major domains, subdomains, core principles, tools, applications and real-world contexts. Then distribute them in a logical sequence across the full course.
 - Design a complete learning journey, not a list of unrelated topics. Each lesson must depend on, extend or apply knowledge from earlier lessons. The sequence should move from prerequisites to mechanisms, analysis, practice, integration and mastery.
@@ -47,13 +51,13 @@ Curriculum design:
 - Include important foundations even at advanced level, but teach them rigorously and do not waste chapters on trivial recap.
 - Distribute coverage broadly. Do not devote most of the course to one narrow subtopic while omitting other major domains.
 - Add intentional review and integration: after several foundational chapters, later chapters should combine earlier knowledge in progressively harder tasks.
-- The final chapter must be a substantial capstone: the final five lessons should progressively plan, execute, analyze, verify and evaluate an end-to-end project or realistic integrated case appropriate to the subject.
+- The final chapter must be a substantial capstone: the final five lessons should progressively plan, execute, analyze, verify and evaluate an end-to-end project or realistic integrated case appropriate to the subject. If this segment does not include the final chapter, do not create a capstone prematurely.
 - For automotive, electrical and mechanical subjects, cover system interactions, measurement interpretation, diagnostics and safe working boundaries. Never design lessons that bypass safety or emissions systems.
 - Do not promise mastery from lesson count alone. The curriculum must provide a complete route, while lessons and exercises establish understanding.
 Return ONLY one JSON object, no markdown, in exactly this shape:
 {"chapters":[{"title":"...","lessons":["...","...","...","...","..."]}]}
-The final result must contain exactly ${plan.chapters} chapter objects and exactly ${plan.lessons} lesson titles. ` }, 
-    { role: "user", content: courseBlock(c) }
+The returned segment must contain exactly ${batch.count} chapter objects and exactly ${batch.count * 5} lesson titles. ` }, 
+    { role: "user", content: `${courseBlock(c)}\n<data>\nGenerate global chapters ${batch.start}-${batch.start + batch.count - 1} only.\n</data>` }
   ];
 }
 

@@ -1,6 +1,6 @@
 import type { Level } from "../types";
 import type { ChatMsg } from "../providers/types";
-import type { ChatTurn, CourseCtx } from "./requests";
+import type { ChatTurn, CourseCtx, LessonProgression } from "./requests";
 
 const LEVEL_TEXT: Record<Level, string> = {
   beginner: "complete beginner: very simple words, everyday analogies, assume no prior knowledge, small steps",
@@ -20,13 +20,6 @@ const BASE = `You are the teacher inside "AI Academy", a Persian-language learni
 
 const courseBlock = (c: CourseCtx) =>
   `<data>\nCourse title: ${c.title}\nSubject: ${c.subject}\nLevel: ${c.level}\nLearning goal: ${c.goal || "(none)"}\nDescription: ${c.description || "(none)"}\n</data>`;
-
-export interface LessonProgression {
-  position: number;
-  total: number;
-  previousLessons: { title: string; summary: string }[];
-  nextLessons: string[];
-}
 
 export function outlineMessages(c: CourseCtx): ChatMsg[] {
   const plan = {

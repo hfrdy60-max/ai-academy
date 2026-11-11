@@ -69,6 +69,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
     const course = parseOutline(body).course;
     const total = course.level === "advanced" ? 20 : course.level === "intermediate" ? 10 : 5;
     const chapters: { title: string; lessons: string[] }[] = [];
+    const outlineUsage = { prompt: 0, completion: 0, total: 0 };
     // Generate five chapters per request. Smaller, ordered segments avoid output
     // truncation and chapter-count drift on large 100-lesson curricula.
     for (let start = 1; start <= total; start += 5) {
@@ -83,6 +84,11 @@ async function runTask(task: Task, body: unknown, env: Env) {
         ];
         res = await provider.complete({ model, messages: requestMessages, maxTokens: 7000, temperature: attempt ? 0.15 : 0.25 });
         lastText = res.text;
+        if (res.usage) {
+          outlineUsage.prompt += res.usage.prompt;
+          outlineUsage.completion += res.usage.completion;
+          outlineUsage.total += res.usage.total;
+        }
         try {
           if (res.finishReason === "length") throw new Error("truncated");
           const parsed = extractJson(res.text) as any;
@@ -106,7 +112,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
       chapters.push(...batchResult);
     }
     const outline = validateOutline({ chapters }, course.level);
-    return { data: outline, meta: { model: res!.model, finishReason: res!.finishReason ?? null, usage: res!.usage ?? null } };
+    return { data: outline, meta: { model: res!.model, finishReason: res!.finishReason ?? null, usage: outlineUsage.total ? outlineUsage : null } };
   }
 
   res = await provider.complete({ model, messages, maxTokens: s.maxTokens, temperature: s.temperature });

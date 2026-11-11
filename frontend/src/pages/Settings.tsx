@@ -15,8 +15,6 @@ export default function Settings() {
   const [goal, setGoal] = useState("1");
   const [profileMsg, setProfileMsg] = useState<Msg>(null);
   const [url, setUrl] = useState("");
-  const [token, setToken] = useState("");
-  const [showToken, setShowToken] = useState(false);
   const [aiMsg, setAiMsg] = useState<Msg>(null);
   const [testing, setTesting] = useState(false);
   const [usage, setUsage] = useState(0);
@@ -29,7 +27,7 @@ export default function Settings() {
     void (async () => {
       try {
         const [p, a, u] = await Promise.all([getProfile(), getAiSettings(), getUsage()]);
-        setName(p.displayName); setGoal(String(p.dailyGoal)); setUrl(a.workerUrl); setToken(a.accessToken); setUsage(u);
+        setName(p.displayName); setGoal(String(p.dailyGoal)); setUrl(a.workerUrl); setUsage(u);
       } catch (e) { setDataMsg({ ok: false, text: errMsg(e) }); }
       finally { setReady(true); }
     })();
@@ -43,16 +41,16 @@ export default function Settings() {
 
   async function onSaveAi(e: { preventDefault: () => void }) {
     e.preventDefault();
-    try { const s = await saveAiSettings({ workerUrl: url, accessToken: token }); setUrl(s.workerUrl); setToken(s.accessToken); setAiMsg({ ok: true, text: "تنظیمات اتصال ذخیره شد." }); }
+    try { const s = await saveAiSettings({ workerUrl: url, accessToken: "" }); setUrl(s.workerUrl); setAiMsg({ ok: true, text: "تنظیمات اتصال ذخیره شد." }); }
     catch (err) { setAiMsg({ ok: false, text: errMsg(err) }); }
   }
 
   async function onTest() {
     setTesting(true); setAiMsg(null);
     try {
-      const r = await testConnection(url, token);
+      const r = await testConnection(url);
       setAiMsg(r.aiConfigured ? { ok: true, text: "اتصال برقرار است و کلید هوش مصنوعی روی سرور تنظیم شده است." }
-        : { ok: false, text: "اتصال و توکن درست است، اما کلید OpenRouter هنوز روی سرور (Worker) تنظیم نشده است." });
+        : { ok: false, text: "اتصال حساب برقرار است، اما کلید OpenRouter هنوز روی سرور (Worker) تنظیم نشده است." });
     } catch (err) { setAiMsg({ ok: false, text: err instanceof AiError ? err.message : errMsg(err) }); }
     finally { setTesting(false); }
   }
@@ -65,7 +63,7 @@ export default function Settings() {
       a.download = `ai-academy-backup-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      setDataMsg({ ok: true, text: "فایل پشتیبان ساخته شد. توکن دسترسی در آن قرار نمی‌گیرد." });
+      setDataMsg({ ok: true, text: "فایل پشتیبان ساخته شد. اطلاعات نشست در آن قرار نمی‌گیرد." });
     } catch (err) { setDataMsg({ ok: false, text: errMsg(err) }); }
   }
 
@@ -81,7 +79,7 @@ export default function Settings() {
 
   async function onWipe() {
     setConfirmWipe(false);
-    try { await deleteAllData(); setName(""); setGoal("1"); setUrl(""); setToken(""); setUsage(0); setDataMsg({ ok: true, text: "همه داده‌های این برنامه از این دستگاه پاک شد." }); }
+    try { await deleteAllData(); setName(""); setGoal("1"); setUrl(""); setUsage(0); setDataMsg({ ok: true, text: "همه داده‌های این برنامه از این دستگاه پاک شد." }); }
     catch (err) { setDataMsg({ ok: false, text: errMsg(err) }); }
   }
 
@@ -92,7 +90,7 @@ export default function Settings() {
 
       <form onSubmit={e => void onSaveProfile(e)} className="card space-y-4" aria-labelledby="s-profile">
         <h2 id="s-profile" className="font-bold">پروفایل</h2>
-        <p className="muted text-sm leading-7">پروفایل فقط روی همین دستگاه ذخیره می‌شود. ثبت‌نام و ورود با حساب کاربری (برای دسترسی از چند دستگاه) هنوز وجود ندارد.</p>
+        <p className="muted text-sm leading-7">حساب شما با ایمیل فعال است؛ تنظیمات نمایشی و هدف روزانه فعلاً روی همین دستگاه ذخیره می‌شوند.</p>
         <div><label htmlFor="p-name" className="mb-1 block text-sm font-bold">نام نمایشی</label><input id="p-name" className="input" maxLength={40} value={name} onChange={e => setName(e.target.value)} /></div>
         <div><label htmlFor="p-goal" className="mb-1 block text-sm font-bold">هدف روزانه (تعداد درس در روز)</label>
           <select id="p-goal" className="input" value={goal} onChange={e => setGoal(e.target.value)}>{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => <option key={n} value={n}>{fa(n)} درس</option>)}</select></div>
@@ -102,12 +100,9 @@ export default function Settings() {
 
       <form onSubmit={e => void onSaveAi(e)} className="card space-y-4" aria-labelledby="s-ai">
         <h2 id="s-ai" className="font-bold">اتصال هوش مصنوعی</h2>
-        <p className="muted text-sm leading-7">کلید هوش مصنوعی هیچ‌وقت در مرورگر قرار نمی‌گیرد؛ فقط روی سرور (Worker) است. اینجا فقط آدرس Worker و «توکن دسترسی» شما نگهداری می‌شود. توکن در حافظه همین مرورگر ذخیره می‌شود و در فایل پشتیبان نیست.</p>
+        <p className="muted text-sm leading-7">درخواست‌های هوش مصنوعی با نشست امن حساب کاربری شما احراز هویت می‌شوند. کلید OpenRouter فقط روی سرور (Worker) نگهداری می‌شود و هرگز به مرورگر نمی‌آید.</p>
         <div><label htmlFor="a-url" className="mb-1 block text-sm font-bold">آدرس Worker</label>
           <input id="a-url" className="input text-left" dir="ltr" inputMode="url" autoComplete="off" placeholder="https://ai-academy-api.xxx.workers.dev" value={url} onChange={e => setUrl(e.target.value)} /></div>
-        <div><label htmlFor="a-token" className="mb-1 block text-sm font-bold">توکن دسترسی</label>
-          <div className="flex gap-2"><input id="a-token" className="input text-left" dir="ltr" type={showToken ? "text" : "password"} autoComplete="off" value={token} onChange={e => setToken(e.target.value)} />
-            <button type="button" className="btn btn-ghost" aria-pressed={showToken} onClick={() => setShowToken(s => !s)}>{showToken ? "پنهان" : "نمایش"}</button></div></div>
         <Note m={aiMsg} />
         <div className="flex flex-wrap gap-2">
           <button type="submit" className="btn btn-primary">ذخیره</button>
@@ -118,7 +113,7 @@ export default function Settings() {
 
       <section className="card space-y-3" aria-labelledby="s-data">
         <h2 id="s-data" className="font-bold">داده‌های من</h2>
-        <p className="muted text-sm leading-7">دوره‌ها، پیشرفت و گفتگوها فقط روی همین مرورگر هستند. پاک کردن اطلاعات سایت در مرورگر آن‌ها را حذف می‌کند؛ پس از فایل پشتیبان استفاده کنید.</p>
+        <p className="muted text-sm leading-7">دوره‌ها و گفتگوها روی این دستگاه نگهداری می‌شوند و با دکمه «همگام‌سازی» در نوار بالا به حساب ابری منتقل می‌شوند. پیش از پاک کردن اطلاعات سایت، همگام‌سازی یا دریافت فایل پشتیبان را انجام دهید.</p>
         <Note m={dataMsg} />
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn btn-ghost" onClick={() => void onExport()}><Icon name="download" className="h-4 w-4" />دریافت فایل پشتیبان</button>

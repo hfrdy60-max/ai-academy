@@ -9,15 +9,34 @@ import { LEVELS } from "../types/course";
 import type { Level } from "../types/course";
 
 type Structure = "ai" | "sample" | "none";
+type CourseDraft = { title: string; subject: string; description: string; goal: string; level: Level; structure: Structure };
+const DRAFT_KEY = "ai-academy-course-draft";
+function readCourseDraft(): CourseDraft | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (typeof d.title !== "string" || typeof d.subject !== "string") return null;
+    return {
+      title: d.title.slice(0, LIMITS.title), subject: d.subject.slice(0, LIMITS.subject),
+      description: typeof d.description === "string" ? d.description.slice(0, LIMITS.description) : "",
+      goal: typeof d.goal === "string" ? d.goal.slice(0, LIMITS.goal) : "",
+      level: d.level === "advanced" || d.level === "intermediate" ? d.level : "beginner",
+      structure: "ai"
+    };
+  } catch { return null; }
+}
 
 export default function CreateCourse() {
   const navigate = useNavigate();
-  const [title, setTitle] = useState("");
-  const [subject, setSubject] = useState("");
-  const [description, setDescription] = useState("");
-  const [goal, setGoal] = useState("");
-  const [level, setLevel] = useState<Level>("beginner");
-  const [structure, setStructure] = useState<Structure>("sample");
+  const [draft] = useState<CourseDraft | null>(() => readCourseDraft());
+  useEffect(() => { if (draft) sessionStorage.removeItem(DRAFT_KEY); }, [draft]);
+  const [title, setTitle] = useState(() => draft?.title ?? "");
+  const [subject, setSubject] = useState(() => draft?.subject ?? "");
+  const [description, setDescription] = useState(() => draft?.description ?? "");
+  const [goal, setGoal] = useState(() => draft?.goal ?? "");
+  const [level, setLevel] = useState<Level>(() => draft?.level ?? "beginner");
+  const [structure, setStructure] = useState<Structure>(() => draft?.structure ?? "sample");
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +70,7 @@ export default function CreateCourse() {
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <h1 className="text-xl font-extrabold md:text-2xl">ساخت دوره جدید</h1>
+      {draft && <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200" role="status">مشخصات دوره از گفتگوی معلم هوشمند وارد شد. قبل از ساخت، آن‌ها را بررسی و در صورت نیاز ویرایش کنید.</p>}
       <p className="muted text-sm leading-7">عنوان و موضوع را بنویسید. می‌توانید فصل‌ها و درس‌ها را هوش مصنوعی طراحی کند یا بعداً خودتان در «ویرایش دوره» بسازید.</p>
 
       <form onSubmit={e => void submit(e)} className="card space-y-4" noValidate>

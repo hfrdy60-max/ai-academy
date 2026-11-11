@@ -40,7 +40,7 @@ export function validateOutline(raw: unknown, level: "beginner" | "intermediate"
   return { chapters };
 }
 
-export function validateLesson(raw: unknown): LessonContent {
+export function validateLesson(raw: unknown, level: "beginner" | "intermediate" | "advanced" = "beginner"): LessonContent {
   if (!isObj(raw)) throw bad();
   const exercises = (Array.isArray(raw.exercises) ? raw.exercises : []).slice(0, 6).map(e => isObj(e)
     ? { question: text(e.question, 1000), hint: text(e.hint, 600), sampleAnswer: text(e.sampleAnswer, 2000) } : null)
@@ -57,6 +57,10 @@ export function validateLesson(raw: unknown): LessonContent {
     examples: list(raw.examples, 6, 2000), notes: list(raw.notes, 8, 600), exercises, quiz, summary: text(raw.summary, 2500)
   };
   if (!lesson.explanation || lesson.objectives.length === 0) throw bad();
+  // Reject obviously abbreviated advanced lessons instead of silently presenting them as complete.
+  if (level === "advanced" && (lesson.explanation.length < 6000 || lesson.objectives.length < 3 || lesson.examples.length < 2 || lesson.exercises.length < 2 || lesson.quiz.length < 3)) {
+    throw new HttpError(502, "ai_content_too_short");
+  }
   return lesson;
 }
 

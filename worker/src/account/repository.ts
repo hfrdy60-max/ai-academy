@@ -22,7 +22,7 @@ export interface StoredRecord {
   updated_at: number;
 }
 
-const MAX_RECORD_BYTES = 1024 * 1024;
+const MAX_RECORD_BYTES = 256 * 1024;
 
 function assertId(value: string, code: string): void {
   if (typeof value !== "string" || value.length < 1 || value.length > 128 ||

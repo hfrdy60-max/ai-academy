@@ -397,6 +397,18 @@ let malformedRevokeRejected = false;
 try { await revokeSessionToken(fakeDb, "bad-token", 7000); } catch { malformedRevokeRejected = true; }
 t("session revocation rejects malformed raw tokens", malformedRevokeRejected);
 
+
+// 13 public account route guards and session CORS
+reset();
+r = await call("/api/auth/register", { body: { email: "student@example.com" }, env: { DB: undefined } });
+t("account registration refuses to run before D1 is bound", r.status === 503 && r.json?.error === "database_not_configured");
+r = await call("/api/sync/courses", { method: "GET", token: null, env: { DB: undefined } });
+t("cloud sync refuses to run before D1 is bound", r.status === 503 && r.json?.error === "database_not_configured");
+r = await worker.fetch(new Request("https://api.test/api/auth/me", {
+  method: "OPTIONS", headers: { Origin: ENV.ALLOWED_ORIGIN, "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "authorization" }
+}), ENV);
+t("CORS preflight allows per-user Authorization bearer sessions", r.status === 204 && (r.headers.get("access-control-allow-headers") || "").toLowerCase().includes("authorization"));
+
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }
 console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);

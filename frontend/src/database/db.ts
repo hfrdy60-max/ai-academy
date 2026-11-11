@@ -43,7 +43,12 @@ export async function withStore<T>(store: StoreName, mode: IDBTransactionMode, r
     let result!: T;
     const req = run(tx.objectStore(store));
     req.onsuccess = () => { result = req.result; };
-    tx.oncomplete = () => resolve(result);
+    tx.oncomplete = () => {
+      if (mode === "readwrite" && (store === STORE.courses || store === STORE.chats)) {
+        window.dispatchEvent(new Event("ai-academy-data-change"));
+      }
+      resolve(result);
+    }
     tx.onerror = () => reject(tx.error ?? new Error("عملیات ذخیره‌سازی ناموفق بود."));
     tx.onabort = () => reject(tx.error ?? new Error("عملیات ذخیره‌سازی لغو شد (شاید فضای ذخیره‌سازی پر است)."));
   });

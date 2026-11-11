@@ -4,6 +4,12 @@ import { level, obj, str } from "../security/validate";
 
 export interface CourseCtx { title: string; subject: string; level: Level; goal: string; description: string }
 export interface ChatTurn { role: "user" | "assistant"; content: string }
+export interface LessonProgression {
+  position: number;
+  total: number;
+  previousLessons: { title: string; summary: string }[];
+  nextLessons: string[];
+}
 
 function course(v: unknown): CourseCtx {
   const o = obj(v, "course");
@@ -17,11 +23,27 @@ export const parseOutline = (b: unknown) => ({ course: course(obj(b, "body").cou
 
 export function parseLesson(b: unknown) {
   const o = obj(b, "body");
+  let progression: LessonProgression | undefined;
+  if (o.progression !== undefined) {
+    const p = obj(o.progression, "progression");
+    const position = Number(p.position), total = Number(p.total);
+    if (!Number.isInteger(position) || !Number.isInteger(total) || position < 1 || total < position || total > 5000) {
+      throw new HttpError(400, "invalid_progression");
+    }
+    const previousLessons = (Array.isArray(p.previousLessons) ? p.previousLessons : []).slice(-3).map(item => {
+      const x = obj(item, "previous_lesson");
+      return { title: str(x.title, "previous_title", 150), summary: str(x.summary, "previous_summary", 700, { optional: true }) };
+    });
+    const nextLessons = (Array.isArray(p.nextLessons) ? p.nextLessons : []).slice(0, 2)
+      .map(item => str(item, "next_lesson", 150));
+    progression = { position, total, previousLessons, nextLessons };
+  }
   return {
     course: course(o.course),
     chapterTitle: str(o.chapterTitle, "chapterTitle", 150),
     lessonTitle: str(o.lessonTitle, "lessonTitle", 150),
-    instruction: str(o.instruction, "instruction", 500, { optional: true }) // e.g. "make it simpler"
+    instruction: str(o.instruction, "instruction", 500, { optional: true }),
+    progression
   };
 }
 

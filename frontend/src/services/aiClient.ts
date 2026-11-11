@@ -2,18 +2,21 @@
 import type { ChatMessage } from "../types/chat";
 import type { Level, LessonContent } from "../types/course";
 import { addUsage, getAiSettings, normalizeWorkerUrl } from "./settingsService";
+import { getSessionToken } from "./accountService";
 
 export class AiError extends Error {
   constructor(public code: string, message: string) { super(message); }
 }
 
 const MESSAGES: Record<string, string> = {
-  not_configured_client: "اتصال هوش مصنوعی هنوز تنظیم نشده است. در بخش «تنظیمات» آدرس سرور و توکن دسترسی را وارد کنید.",
+  not_configured_client: "آدرس سرور هوش مصنوعی تنظیم نشده است. در بخش تنظیمات آن را بررسی کنید.",
   offline: "اینترنت ندارید. قابلیت‌های هوش مصنوعی به اینترنت نیاز دارند؛ دوره‌های ذخیره‌شده آفلاین کار می‌کنند.",
   network: "ارتباط با سرور برقرار نشد. آدرس سرور و اینترنت را بررسی کنید.",
   timeout: "پاسخ سرور خیلی طول کشید. دوباره تلاش کنید.",
-  unauthorized: "توکن دسترسی اشتباه است. آن را در «تنظیمات» بررسی کنید.",
-  not_configured: "روی سرور (Worker) مقدار ACCESS_TOKEN تنظیم نشده است.",
+  unauthorized: "دسترسی تأیید نشد؛ دوباره وارد حساب شوید.",
+  session_expired: "نشست حساب شما منقضی شده است؛ دوباره وارد شوید.",
+  database_not_configured: "پایگاه داده حساب‌های کاربری هنوز روی سرور راه‌اندازی نشده است.",
+  not_configured: "تنظیمات امنیتی سرور کامل نیست.",
   ai_not_configured: "کلید OpenRouter روی سرور (Worker) تنظیم نشده است.",
   ai_auth_failed: "کلید OpenRouter روی سرور نامعتبر است. تنظیمات Worker را بررسی کنید.",
   rate_limited: "درخواست‌ها زیاد بود. یک دقیقه صبر کنید و دوباره تلاش کنید.",
@@ -33,7 +36,7 @@ const MESSAGES: Record<string, string> = {
 export const aiErrorText = (code: string): string =>
   MESSAGES[code] ?? (code.startsWith("invalid_") || code.startsWith("too_long_") ? "اطلاعات ارسالی معتبر نیست؛ طول یا قالب متن‌ها را بررسی کنید." : "خطای ناشناخته از سرور.");
 
-async function send(method: "GET" | "POST", path: string, workerUrl: string, token: string, body?: unknown, timeoutMs = 75_000): Promise<any> {
+async function send(method: "GET" | "POST", path: string, workerUrl: string, body?: unknown, timeoutMs = 75_000): Promise<any> {
   if (typeof navigator !== "undefined" && navigator.onLine === false) throw new AiError("offline", MESSAGES.offline);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -41,7 +44,7 @@ async function send(method: "GET" | "POST", path: string, workerUrl: string, tok
   try {
     res = await fetch(workerUrl + path, {
       method, signal: ctrl.signal,
-      headers: { "X-Access-Token": token, ...(body ? { "Content-Type": "application/json" } : {}) },
+      headers: { ...(getSessionToken() ? { Authorization: "Bearer " + getSessionToken() } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined
     });
   } catch (e) {
@@ -59,9 +62,9 @@ async function send(method: "GET" | "POST", path: string, workerUrl: string, tok
 
 async function call<T>(task: string, body: unknown, timeoutMs = 75_000): Promise<{ data: T; model: string }> {
   const s = await getAiSettings();
-  if (!s.workerUrl || !s.accessToken) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
+  if (!s.workerUrl || !getSessionToken()) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
   const url = normalizeWorkerUrl(s.workerUrl);
-  const json = await send("POST", `/api/ai/${task}`, url, s.accessToken, body, timeoutMs);
+  const json = await send("POST", `/api/ai/${task}`, url, body, timeoutMs);
   void addUsage(json.meta?.usage?.total ?? 0).catch(() => {});
   return { data: json.data as T, model: typeof json.meta?.model === "string" ? json.meta.model : "" };
 }
@@ -90,9 +93,9 @@ export const checkAnswer = (p: { lessonTitle: string; level: Level; question: st
   call<{ verdict: "correct" | "partial" | "incorrect"; feedback: string }>("check", p);
 
 /** Used by the Settings page: verifies URL + token and whether the Worker has its AI key. */
-export async function testConnection(workerUrl: string, token: string): Promise<{ aiConfigured: boolean }> {
+export async function testConnection(workerUrl: string): Promise<{ aiConfigured: boolean }> {
   const url = normalizeWorkerUrl(workerUrl);
-  if (!url || !token.trim()) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
-  const json = await send("GET", "/api/status", url, token.trim(), undefined, 15_000);
+  if (!url || !getSessionToken()) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
+  const json = await send("GET", "/api/status", url, undefined, 15_000);
   return { aiConfigured: !!json.aiConfigured };
 }

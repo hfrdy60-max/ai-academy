@@ -60,7 +60,7 @@ export function validateLesson(raw: unknown, level: "beginner" | "intermediate" 
     if (!isObj(q)) return null;
     const options = list(q.options, 4, 500);
     const idx = Number(q.correctIndex);
-    if (options.length !== 4 || !Number.isInteger(idx) || idx < 0 || idx >= options.length) return null;
+    if (!Array.isArray(q.options) || q.options.length !== 4 || options.length !== 4 || !Number.isInteger(idx) || idx < 0 || idx >= options.length) return null;
     return { question: text(q.question, 900), options, correctIndex: idx, explanation: text(q.explanation, 1400) };
   }).filter((q): q is QuizItem => !!q && !!q.question && !!q.explanation);
   const lesson: LessonContent = {

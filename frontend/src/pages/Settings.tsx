@@ -15,6 +15,8 @@ export default function Settings() {
   const [goal, setGoal] = useState("1");
   const [profileMsg, setProfileMsg] = useState<Msg>(null);
   const [url, setUrl] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
   const [aiMsg, setAiMsg] = useState<Msg>(null);
   const [testing, setTesting] = useState(false);
   const [usage, setUsage] = useState(0);
@@ -27,7 +29,7 @@ export default function Settings() {
     void (async () => {
       try {
         const [p, a, u] = await Promise.all([getProfile(), getAiSettings(), getUsage()]);
-        setName(p.displayName); setGoal(String(p.dailyGoal)); setUrl(a.workerUrl); setUsage(u);
+        setName(p.displayName); setGoal(String(p.dailyGoal)); setUrl(a.workerUrl); setAccessToken(a.accessToken); setUsage(u);
       } catch (e) { setDataMsg({ ok: false, text: errMsg(e) }); }
       finally { setReady(true); }
     })();
@@ -41,7 +43,7 @@ export default function Settings() {
 
   async function onSaveAi(e: { preventDefault: () => void }) {
     e.preventDefault();
-    try { const s = await saveAiSettings({ workerUrl: url, accessToken: "" }); setUrl(s.workerUrl); setAiMsg({ ok: true, text: "تنظیمات اتصال ذخیره شد." }); }
+    try { const s = await saveAiSettings({ workerUrl: url, accessToken }); setUrl(s.workerUrl); setAccessToken(s.accessToken); setAiMsg({ ok: true, text: "تنظیمات اتصال ذخیره شد." }); }
     catch (err) { setAiMsg({ ok: false, text: errMsg(err) }); }
   }
 
@@ -79,7 +81,7 @@ export default function Settings() {
 
   async function onWipe() {
     setConfirmWipe(false);
-    try { await deleteAllData(); setName(""); setGoal("1"); setUrl(""); setUsage(0); setDataMsg({ ok: true, text: "همه داده‌های این برنامه از این دستگاه پاک شد." }); }
+    try { await deleteAllData(); setName(""); setGoal("1"); setUrl(""); setAccessToken(""); setUsage(0); setDataMsg({ ok: true, text: "همه داده‌های این برنامه از این دستگاه پاک شد." }); }
     catch (err) { setDataMsg({ ok: false, text: errMsg(err) }); }
   }
 
@@ -103,6 +105,7 @@ export default function Settings() {
         <p className="muted text-sm leading-7">درخواست‌های هوش مصنوعی با نشست امن حساب کاربری شما احراز هویت می‌شوند. کلید OpenRouter فقط روی سرور (Worker) نگهداری می‌شود و هرگز به مرورگر نمی‌آید.</p>
         <div><label htmlFor="a-url" className="mb-1 block text-sm font-bold">آدرس Worker</label>
           <input id="a-url" className="input text-left" dir="ltr" inputMode="url" autoComplete="off" placeholder="https://ai-academy-api.xxx.workers.dev" value={url} onChange={e => setUrl(e.target.value)} /></div>
+        <div><label htmlFor="a-token" className="mb-1 block text-sm font-bold">رمز دسترسی Worker</label><div className="flex gap-2"><input id="a-token" className="input min-w-0 flex-1 text-left" dir="ltr" autoComplete="off" type={showToken ? "text" : "password"} value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="رمز دسترسی تنظیم‌شده روی Worker" /><button type="button" className="btn btn-ghost shrink-0" onClick={() => setShowToken(v => !v)} aria-label={showToken ? "پنهان کردن رمز" : "نمایش رمز"}>{showToken ? "پنهان" : "نمایش"}</button></div><p className="muted mt-1 text-xs">این رمز در حافظه امن محلی همین دستگاه نگهداری می‌شود. اگر از ورود حساب استفاده می‌کنید، این قسمت لازم نیست.</p></div>
         <Note m={aiMsg} />
         <div className="flex flex-wrap gap-2">
           <button type="submit" className="btn btn-primary">ذخیره</button>

@@ -37,12 +37,27 @@ export function validateOutline(raw: unknown, level: "beginner" | "intermediate"
   if (!isObj(raw) || !Array.isArray(raw.chapters) || raw.chapters.length !== expected.chapters) {
     throw new HttpError(502, "ai_outline_incomplete");
   }
+  const normalizeTitle = (value: string) => value
+    .normalize("NFKC")
+    .toLocaleLowerCase("fa")
+    .replace(/[\u200c\u200d\s\u0640]/g, "")
+    .replace(/[\p{P}\p{S}]/gu, "");
+  const chapterTitles = new Set<string>();
+  const lessonTitles = new Set<string>();
   const chapters = raw.chapters.map(c => {
     if (!isObj(c)) throw new HttpError(502, "ai_outline_incomplete");
     const title = text(c.title, 150);
     const lessons = list(c.lessons, 5, 150);
     if (!title || !Array.isArray(c.lessons) || c.lessons.length !== 5 || lessons.length !== 5) {
       throw new HttpError(502, "ai_outline_incomplete");
+    }
+    const chapterKey = normalizeTitle(title);
+    if (!chapterKey || chapterTitles.has(chapterKey)) throw new HttpError(502, "ai_outline_incomplete");
+    chapterTitles.add(chapterKey);
+    for (const lessonTitle of lessons) {
+      const lessonKey = normalizeTitle(lessonTitle);
+      if (!lessonKey || lessonTitles.has(lessonKey)) throw new HttpError(502, "ai_outline_incomplete");
+      lessonTitles.add(lessonKey);
     }
     return { title, lessons };
   });

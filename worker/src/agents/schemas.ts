@@ -58,7 +58,7 @@ export function validateLesson(raw: unknown, level: "beginner" | "intermediate" 
   };
   if (!lesson.explanation || lesson.objectives.length === 0) throw bad();
   // Reject obviously abbreviated advanced lessons instead of silently presenting them as complete.
-  if (level === "advanced" && (lesson.explanation.length < 6000 || lesson.objectives.length < 3 || lesson.examples.length < 2 || lesson.exercises.length < 2 || lesson.quiz.length < 3)) {
+  if (level === "advanced" && (lesson.explanation.length < 6000 || lesson.intro.length < 80 || lesson.summary.length < 120 || lesson.objectives.length < 3 || lesson.examples.length < 2 || lesson.exercises.length < 2 || lesson.quiz.length < 3)) {
     throw new HttpError(502, "ai_content_too_short");
   }
   return lesson;

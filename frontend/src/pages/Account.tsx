@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { requestLoginCode, verifyLoginCode } from "../services/accountService";
+import { syncAccountData } from "../services/syncService";
 
 export default function Account() {
   const [email, setEmail] = useState("");
@@ -27,6 +28,7 @@ export default function Account() {
     try {
       await verifyLoginCode(email, code.trim());
       navigate(destination, { replace: true });
+      void syncAccountData().catch(() => { /* the header exposes manual retry */ });
     } catch (err) { setError(err instanceof Error ? err.message : "تأیید کد ناموفق بود."); }
     finally { setBusy(false); }
   }

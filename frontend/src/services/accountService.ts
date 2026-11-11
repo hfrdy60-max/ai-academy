@@ -5,12 +5,13 @@ const USER_KEY = "ai-academy-user";
 const DEFAULT_WORKER = "https://ai-academy-api.hfrdy60.workers.dev";
 
 export interface AccountUser { id: string; email: string }
-function apiBase(): string {
+async function apiBase(): Promise<string> {
+  const settings = await getAiSettings();
   const configured = import.meta.env?.VITE_WORKER_URL;
-  return normalizeWorkerUrl(typeof configured === "string" && configured ? configured : DEFAULT_WORKER);
+  return normalizeWorkerUrl(settings.workerUrl || (typeof configured === "string" && configured ? configured : DEFAULT_WORKER));
 }
 async function request<T>(path: string, options: { method?: string; body?: unknown; auth?: boolean } = {}): Promise<T> {
-  const base = apiBase();
+  const base = await apiBase();
   const token = sessionStorage.getItem(TOKEN_KEY);
   const response = await fetch(base + path, {
     method: options.method ?? "GET",
@@ -63,8 +64,4 @@ export async function logoutAccount(): Promise<void> {
 }
 export async function accountApi<T>(path: string, method: "GET" | "PUT", body?: unknown): Promise<T> {
   return request<T>(path, { method, body, auth: true });
-}
-export async function configuredWorkerUrl(): Promise<string> {
-  const settings = await getAiSettings();
-  return settings.workerUrl || apiBase();
 }

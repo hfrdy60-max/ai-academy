@@ -63,13 +63,19 @@ async function call<T>(task: string, body: unknown): Promise<{ data: T; model: s
 }
 
 export interface CourseInfo { title: string; subject: string; level: Level; goal: string; description: string }
+export interface LessonProgression {
+  position: number;
+  total: number;
+  previousLessons: { title: string; summary: string }[];
+  nextLessons: string[];
+}
 export interface TeacherContext { courseTitle?: string; subject?: string; goal?: string; lessonTitle?: string; lessonText?: string }
 
 export const generateOutline = (course: CourseInfo) =>
   call<{ chapters: { title: string; lessons: string[] }[] }>("outline", { course });
 
-export const generateLesson = (course: CourseInfo, chapterTitle: string, lessonTitle: string, instruction = "") =>
-  call<LessonContent>("lesson", { course, chapterTitle, lessonTitle, instruction });
+export const generateLesson = (course: CourseInfo, chapterTitle: string, lessonTitle: string, instruction = "", progression?: LessonProgression) =>
+  call<LessonContent>("lesson", { course, chapterTitle, lessonTitle, instruction, progression });
 
 export async function askTeacher(level: Level, context: TeacherContext, history: Pick<ChatMessage, "role" | "content">[]): Promise<string> {
   const r = await call<{ reply: string }>("chat", { level, context, messages: history.slice(-12) });

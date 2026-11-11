@@ -57,11 +57,11 @@ async function send(method: "GET" | "POST", path: string, workerUrl: string, tok
   return json;
 }
 
-async function call<T>(task: string, body: unknown): Promise<{ data: T; model: string }> {
+async function call<T>(task: string, body: unknown, timeoutMs = 75_000): Promise<{ data: T; model: string }> {
   const s = await getAiSettings();
   if (!s.workerUrl || !s.accessToken) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
   const url = normalizeWorkerUrl(s.workerUrl);
-  const json = await send("POST", `/api/ai/${task}`, url, s.accessToken, body);
+  const json = await send("POST", `/api/ai/${task}`, url, s.accessToken, body, timeoutMs);
   void addUsage(json.meta?.usage?.total ?? 0).catch(() => {});
   return { data: json.data as T, model: typeof json.meta?.model === "string" ? json.meta.model : "" };
 }
@@ -79,7 +79,7 @@ export const generateOutline = (course: CourseInfo) =>
   call<{ chapters: { title: string; lessons: string[] }[] }>("outline", { course });
 
 export const generateLesson = (course: CourseInfo, chapterTitle: string, lessonTitle: string, instruction = "", progression?: LessonProgression) =>
-  call<LessonContent>("lesson", { course, chapterTitle, lessonTitle, instruction, progression });
+  call<LessonContent>("lesson", { course, chapterTitle, lessonTitle, instruction, progression }, 210_000);
 
 export async function askTeacher(level: Level, context: TeacherContext, history: Pick<ChatMessage, "role" | "content">[]): Promise<string> {
   const r = await call<{ reply: string }>("chat", { level, context, messages: history.slice(-12) });

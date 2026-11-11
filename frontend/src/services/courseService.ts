@@ -28,12 +28,45 @@ function buildChapters(plan: Plan[]): Chapter[] {
   }));
 }
 
-// Placeholder structure until AI course generation exists (Milestone 4).
+// Deliberately small demo-only structure; real curricula must come from a validated AI outline.
 const genericPlan = (): Plan[] =>
   [1, 2, 3].map(c => ({
-    title: `فصل ${fa(c)}`,
-    lessons: [1, 2].map(l => `درس ${fa(l)} از فصل ${fa(c)}`)
+    title: `فصل آزمایشی ${fa(c)}`,
+    lessons: [1, 2].map(l => `درس آزمایشی ${fa(l)} از فصل ${fa(c)}`)
   }));
+
+function validateGeneratedOutline(outline: Plan[], level: Level): Plan[] {
+  const expected = { beginner: 5, intermediate: 10, advanced: 20 }[level];
+  const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase("fa")
+    .replace(/[\\u200c\\u200d\\s\\u0640]/g, "").replace(/[\\p{P}\\p{S}]/gu, "");
+  if (!Array.isArray(outline) || outline.length !== expected) {
+    throw new Error(`ساختار دوره ناقص است؛ سطح انتخابی به ${fa(expected)} فصل و هر فصل به ۵ درس نیاز دارد. دوباره طراحی کنید.`);
+  }
+  const chapterTitles = new Set<string>();
+  const lessonTitles = new Set<string>();
+  for (const chapter of outline) {
+    if (!chapter || typeof chapter.title !== "string" || !chapter.title.trim() ||
+        !Array.isArray(chapter.lessons) || chapter.lessons.length !== 5) {
+      throw new Error("ساختار دوره ناقص است؛ هر فصل باید عنوان و دقیقاً ۵ درس داشته باشد.");
+    }
+    const chapterKey = normalize(chapter.title);
+    if (!chapterKey || chapterTitles.has(chapterKey)) {
+      throw new Error("عنوان فصل‌های دوره تکراری است؛ ساختار را دوباره طراحی کنید.");
+    }
+    chapterTitles.add(chapterKey);
+    for (const lesson of chapter.lessons) {
+      if (typeof lesson !== "string" || !lesson.trim()) {
+        throw new Error("یکی از درس‌های دوره عنوان معتبر ندارد.");
+      }
+      const key = normalize(lesson);
+      if (!key || lessonTitles.has(key)) {
+        throw new Error("عنوان درس‌های دوره تکراری است؛ ساختار را دوباره طراحی کنید.");
+      }
+      lessonTitles.add(key);
+    }
+  }
+  return outline.map(ch => ({ title: ch.title.trim(), lessons: ch.lessons.map(x => x.trim()) }));
+}
 
 export function courseProgress(c: Course): CourseProgress {
   const lessons = c.chapters.flatMap(ch => ch.lessons);
@@ -73,7 +106,8 @@ function checkInfo(i: Info): Info {
 export async function createCourse(input: NewCourseInput): Promise<Course> {
   const info = checkInfo(input);
   const now = Date.now();
-  const chapters = input.outline && input.outline.length > 0 ? buildChapters(input.outline)
+  const chapters = input.outline
+    ? buildChapters(validateGeneratedOutline(input.outline, input.level))
     : input.withSampleStructure ? buildChapters(genericPlan()) : [];
   const course: Course = { id: newId(), ...info, level: input.level, chapters, isDemo: false, createdAt: now, updatedAt: now };
   await saveCourse(course);

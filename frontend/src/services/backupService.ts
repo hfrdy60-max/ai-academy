@@ -50,6 +50,16 @@ export async function importData(text: string): Promise<{ courses: number; chats
   if (rawCourses.length > 500 || rawChats.length > 2000) throw new Error("تعداد داده‌ها بیش از حد مجاز است.");
   const courses = rawCourses.map((c, i) => validateCourse(c, i));
   const chats = rawChats.map((c, i) => validateThread(c, i));
+  const courseIds = new Set<string>();
+  for (const course of courses) {
+    if (courseIds.has(course.id)) throw new Error("فایل پشتیبان شامل شناسه دوره تکراری است.");
+    courseIds.add(course.id);
+  }
+  const chatIds = new Set<string>();
+  for (const chat of chats) {
+    if (chatIds.has(chat.id)) throw new Error("فایل پشتیبان شامل شناسه گفتگوی تکراری است.");
+    chatIds.add(chat.id);
+  }
   const examResults = r.examResults === undefined ? readLocalArray(EXAM_KEY) : validateResults(r.examResults, "exam");
   const gameResults = r.gameResults === undefined ? readLocalArray(GAME_KEY) : validateResults(r.gameResults, "game");
   let profile: Profile | undefined;

@@ -2,6 +2,7 @@
 import type { Env, Task } from "./types";
 import { HttpError } from "./security/errors";
 import { tokenMatches } from "./security/auth";
+import { resolveSession } from "./account/session";
 import { allowRequest } from "./security/rateLimit";
 import { readJsonBody } from "./security/validate";
 import { handleAccountRoute } from "./account/routes";
@@ -85,13 +86,20 @@ export default {
       const accountResponse = await handleAccountRoute(request, env, url.pathname);
       if (accountResponse) return new Response(accountResponse.body, { status: accountResponse.status, statusText: accountResponse.statusText, headers: { ...Object.fromEntries(accountResponse.headers), ...headers } });
 
-      // Existing AI endpoints remain protected by the legacy shared token until
-      // the frontend migration to per-user sessions is completed.
       const limit = Number(env.RATE_LIMIT_PER_MINUTE) || 30;
       const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-      if (!allowRequest(ip, limit)) throw new HttpError(429, "rate_limited");
-      if (!env.ACCESS_TOKEN) throw new HttpError(503, "not_configured"); // refuse to run as an open proxy
-      if (!(await tokenMatches(request.headers.get("X-Access-Token"), env.ACCESS_TOKEN))) throw new HttpError(401, "unauthorized");
+      if (!allowRequest("ai:" + ip, limit)) throw new HttpError(429, "rate_limited");
+
+      // Account sessions are preferred; shared-token support remains for older builds.
+      const authorization = request.headers.get("Authorization") ?? "";
+      if (/^Bearer /i.test(authorization)) {
+        if (!env.DB) throw new HttpError(503, "database_not_configured");
+        const match = /^Bearer ([a-f0-9]{64})$/i.exec(authorization);
+        if (!match || !(await resolveSession(env.DB, match[1]))) throw new HttpError(401, "session_expired");
+      } else {
+        if (!env.ACCESS_TOKEN) throw new HttpError(503, "not_configured");
+        if (!(await tokenMatches(request.headers.get("X-Access-Token"), env.ACCESS_TOKEN))) throw new HttpError(401, "unauthorized");
+      }
 
       if (url.pathname === "/api/status" && request.method === "GET") return json({ ok: true, aiConfigured: !!env.OPENROUTER_API_KEY }, 200, headers);
 

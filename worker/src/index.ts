@@ -12,7 +12,7 @@ import { extractJson, validateChatReply, validateCheck, validateLesson, validate
 const MAX_BODY_BYTES = 128 * 1024;
 const TASKS: readonly Task[] = ["outline", "lesson", "chat", "check"];
 const SETTINGS: Record<Task, { maxTokens: number; temperature: number }> = {
-  outline: { maxTokens: 6500, temperature: 0.35 }, lesson: { maxTokens: 4500, temperature: 0.5 },
+  outline: { maxTokens: 9000, temperature: 0.3 }, lesson: { maxTokens: 6500, temperature: 0.4 },
   chat: { maxTokens: 1200, temperature: 0.6 }, check: { maxTokens: 600, temperature: 0.2 }
 };
 
@@ -42,7 +42,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
         const bodyObj = body && typeof body === "object" ? body as Record<string, unknown> : {};
         const courseObj = bodyObj.course && typeof bodyObj.course === "object" ? bodyObj.course as Record<string, unknown> : {};
         const courseLevel = courseObj.level;
-        return { maxTokens: courseLevel === "advanced" ? 12000 : courseLevel === "intermediate" ? 7000 : 4500, temperature: SETTINGS.lesson.temperature };
+        return { maxTokens: courseLevel === "advanced" ? 15000 : courseLevel === "intermediate" ? 10000 : 6500, temperature: SETTINGS.lesson.temperature };
       })()
     : SETTINGS[task];
   let messages;
@@ -54,7 +54,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
   }
   else if (task === "lesson") {
     const r = parseLesson(body);
-    messages = lessonMessages(r.course, r.chapterTitle, r.lessonTitle, r.instruction); finish = t => validateLesson(extractJson(t), r.course.level);
+    messages = lessonMessages(r.course, r.chapterTitle, r.lessonTitle, r.instruction, r.progression); finish = t => validateLesson(extractJson(t), r.course.level);
   } else if (task === "check") {
     const r = parseCheck(body);
     messages = checkMessages(r.level, r.lessonTitle, r.question, r.learnerAnswer, r.sampleAnswer); finish = t => validateCheck(extractJson(t));

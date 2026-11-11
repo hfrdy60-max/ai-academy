@@ -35,7 +35,7 @@ async function digest(value: string): Promise<string> {
   return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
 }
 async function sendCode(env: Env, email: string, code: string): Promise<void> {
-  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) throw new HttpError(503, "email_not_configured");
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM || !env.AUTH_PEPPER) throw new HttpError(503, "email_not_configured");
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
@@ -67,8 +67,9 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
     catch { throw new HttpError(400, "invalid_email"); }
     if (!EMAIL_RE.test(email)) throw new HttpError(400, "invalid_email");
     if (!allowRequest(`register:${email}`, 3)) throw new HttpError(429, "rate_limited");
+    if (!env.AUTH_PEPPER) throw new HttpError(503, "email_not_configured");
     const code = randomCode();
-    const codeHash = await digest(`${email}:${code}:${env.AUTH_PEPPER ?? "ai-academy-verification"}`);
+    const codeHash = await digest(`${email}:${code}:${env.AUTH_PEPPER}`);
     await saveEmailVerification(env.DB, email, codeHash, Date.now(), Date.now() + CODE_TTL);
     await sendCode(env, email, code);
     return json({ ok: true, message: "اگر امکان ارسال به این نشانی وجود داشته باشد، کد تأیید ارسال شده است.", expiresInSeconds: 600 });
@@ -82,7 +83,8 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
     const code = str(body.code, "code", 6);
     if (!/^\d{6}$/.test(code)) throw new HttpError(400, "invalid_code");
     if (!allowRequest(`verify:${email}`, 10)) throw new HttpError(429, "rate_limited");
-    const codeHash = await digest(`${email}:${code}:${env.AUTH_PEPPER ?? "ai-academy-verification"}`);
+    if (!env.AUTH_PEPPER) throw new HttpError(503, "email_not_configured");
+    const codeHash = await digest(`${email}:${code}:${env.AUTH_PEPPER}`);
     const valid = await consumeEmailVerification(env.DB, email, codeHash, Date.now());
     if (!valid) throw new HttpError(401, "invalid_or_expired_code");
     let user = await findUserByEmail(env.DB, email);

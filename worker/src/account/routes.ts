@@ -6,7 +6,7 @@ import { normalizeEmail } from "./crypto";
 import { findUserByEmail, insertUser, saveEmailVerification, consumeEmailVerification, putUserCourse, listUserCourses, putUserChat, listUserChats } from "./repository";
 import { issueSession, resolveSession, revokeSessionToken } from "./session";
 
-const MAX_BODY = 300 * 1024;
+const MAX_BODY = 2 * 1024 * 1024;
 const CODE_TTL = 10 * 60 * 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

@@ -67,7 +67,7 @@ export default function TeacherChat({ threadKey, level, context, suggestions = [
       const instruction = `از درخواست‌های من در این گفتگو، مشخصات یک دوره آموزشی را استخراج کن. فقط یک شیء JSON معتبر و بدون markdown برگردان با این کلیدها: {"title":"عنوان کوتاه دوره","subject":"موضوع اصلی","level":"beginner|intermediate|advanced","goal":"هدف یادگیری روشن و قابل سنجش","description":"توضیح کامل محدوده موضوعات، پیش‌نیازها، سرفصل‌های مورد انتظار و مهارت‌های پایانی در حداکثر ۱۰۰۰ نویسه"}. سطح صریح من را حفظ کن؛ اگر نگفته‌ام از پیچیدگی درخواست استنباط کن. همه متن‌ها فارسی باشند.`;
       const history = thread.messages.slice(-16).map(m => ({ role: m.role, content: m.content }));
       const raw = await askTeacher(level, context, [...history, { role: "user", content: instruction }]);
-      const match = raw.match(/\\{[\\s\\S]*\\}/);
+      const match = raw.match(/\{[\s\S]*\}/);
       if (!match) throw new Error("مشخصات دوره استخراج نشد؛ درخواست ساخت دوره را واضح‌تر بیان کنید.");
       const draft = JSON.parse(match[0]) as Record<string, unknown>;
       const title = typeof draft.title === "string" ? draft.title.trim() : "";

@@ -22,6 +22,7 @@ export default function CreateCourse() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const touched = useRef(false);
+  const curriculumSize = { beginner: { chapters: 5, lessons: 25 }, intermediate: { chapters: 10, lessons: 50 }, advanced: { chapters: 20, lessons: 100 } }[level];
 
   // If the AI connection is already set up, suggest AI-generated structure by default.
   useEffect(() => {
@@ -68,6 +69,7 @@ export default function CreateCourse() {
           <select id="c-level" className="input" value={level} onChange={e => setLevel(e.target.value as Level)}>
             {LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
           </select>
+          <p className="muted mt-1 text-xs">ساختار خودکار این سطح: {fa(curriculumSize.chapters)} فصل و {fa(curriculumSize.lessons)} درس؛ هر فصل دقیقاً ۵ درس دارد.</p>
         </div>
         <div>
           <label htmlFor="c-goal" className="mb-1 block text-sm font-bold">هدف یادگیری</label>

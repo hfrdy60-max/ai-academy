@@ -86,11 +86,20 @@ async function runTask(task: Task, body: unknown, env: Env) {
         try {
           if (res.finishReason === "length") throw new Error("truncated");
           const parsed = extractJson(res.text) as any;
-          const checked = validateOutline(parsed, "beginner");
-          if (checked.chapters.length !== 5) throw new Error("wrong batch size");
+          if (!parsed || !Array.isArray(parsed.chapters)) throw new HttpError(502, "ai_outline_incomplete");
+          // Some providers ignore the requested segment and return the entire
+          // curriculum. Accept that valid shape and take only this ordered slice.
+          const segment = parsed.chapters.length === total
+            ? parsed.chapters.slice(start - 1, start - 1 + 5)
+            : parsed.chapters;
+          const checked = validateOutline({ chapters: segment }, "beginner");
+          if (checked.chapters.length !== 5) throw new HttpError(502, "ai_outline_incomplete");
           batchResult = checked.chapters;
-        } catch {
-          if (attempt === 1) throw new HttpError(502, "ai_outline_incomplete");
+        } catch (error) {
+          if (attempt === 1) {
+            if (error instanceof HttpError && error.code === "ai_bad_output") throw error;
+            throw new HttpError(502, "ai_outline_incomplete");
+          }
         }
       }
       if (!batchResult) throw new HttpError(502, "ai_outline_incomplete");

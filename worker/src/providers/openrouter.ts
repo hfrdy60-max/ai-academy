@@ -42,6 +42,7 @@ export function createOpenRouter(env: Env): AiProvider {
             return {
               text,
               model: typeof data?.model === "string" ? data.model : opts.model,
+              finishReason: typeof data?.choices?.[0]?.finish_reason === "string" ? data.choices[0].finish_reason : undefined,
               usage: u && typeof u.total_tokens === "number"
                 ? { prompt: Number(u.prompt_tokens) || 0, completion: Number(u.completion_tokens) || 0, total: u.total_tokens } : undefined
             };

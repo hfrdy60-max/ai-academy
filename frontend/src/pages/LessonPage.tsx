@@ -49,6 +49,17 @@ export default function LessonPage() {
   }
   const { chapter, lesson } = found;
   const content = lesson.content;
+  const orderedLessons = course.chapters.flatMap(ch => ch.lessons.map(item => ({ chapterTitle: ch.title, lesson: item })));
+  const lessonPosition = orderedLessons.findIndex(item => item.lesson.id === lesson.id);
+  const progression = lessonPosition >= 0 ? {
+    position: lessonPosition + 1,
+    total: orderedLessons.length,
+    previousLessons: orderedLessons.slice(Math.max(0, lessonPosition - 3), lessonPosition).map(item => ({
+      title: item.lesson.title,
+      summary: item.lesson.content?.summary || item.lesson.content?.intro || ""
+    })),
+    nextLessons: orderedLessons.slice(lessonPosition + 1, lessonPosition + 3).map(item => item.lesson.title)
+  } : undefined;
 
   async function generate(extra: string) {
     if (!course) return;
@@ -56,7 +67,7 @@ export default function LessonPage() {
     try {
       const r = await generateLesson(
         { title: course.title, subject: course.subject, level: course.level, goal: course.goal, description: course.description },
-        chapter.title, lesson.title, extra.trim());
+        chapter.title, lesson.title, extra.trim(), progression);
       setCourse(await setLessonContent(course.id, lesson.id, r.data, "ai", r.model));
       setInstruction("");
     } catch (e) { setGenError(aiMsg(e)); }

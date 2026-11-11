@@ -1,5 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
+import AuthGate from "./components/AuthGate";
+import Account from "./pages/Account";
 import Dashboard from "./pages/Dashboard";
 import Courses from "./pages/Courses";
 import CreateCourse from "./pages/CreateCourse";
@@ -19,6 +21,8 @@ const BUILT = new Set(["/", "/courses", "/create", "/teacher", "/settings", "/pr
 export default function App() {
   return (
     <Routes>
+      <Route path="/login" element={<Account />} />
+      <Route element={<AuthGate />}>
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="/courses" element={<Courses />} />
@@ -33,6 +37,7 @@ export default function App() {
         <Route path="/games" element={<Games />} />
         {NAV.filter(n => !BUILT.has(n.path)).map(n => <Route key={n.path} path={n.path} element={<ComingSoon />} />)}
         <Route path="*" element={<ComingSoon />} />
+      </Route>
       </Route>
     </Routes>
   );

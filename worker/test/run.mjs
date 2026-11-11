@@ -92,6 +92,11 @@ r = await call("/api/ai/outline", { body: { course }, env: { OPENROUTER_API_KEY:
 reset(); r = await call("/api/ai/outline", { body: { course } });
 t("outline OK (fenced JSON parsed + validated)", r.status === 200 && r.json.data.chapters.length === 5 && r.json.data.chapters.flatMap(ch => ch.lessons).length === 25 && r.json.meta.model === "fake/model-1");
 t("token usage returned", r.json.meta.usage?.total === 15);
+reset("duplicateLesson"); r = await call("/api/ai/outline", { body: { course } });
+t("outline rejects duplicate lesson titles", r.status === 502 && r.json.error === "ai_outline_incomplete");
+reset("duplicateChapter"); r = await call("/api/ai/outline", { body: { course } });
+t("outline rejects duplicate chapter titles", r.status === 502 && r.json.error === "ai_outline_incomplete");
+
 t("upstream got Bearer key; key NOT in response", seen[0].auth === "Bearer sk-test-KEY" && !r.text.includes("sk-test-KEY"));
 t("model comes from config", seen[0].body.model === "openai/gpt-4o-mini");
 r = await call("/api/ai/outline", { body: { course }, env: { MODEL_OUTLINE: "vendor/special" } }); t("per-task model override works", seen.at(-1).body.model === "vendor/special");

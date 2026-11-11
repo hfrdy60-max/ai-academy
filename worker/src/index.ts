@@ -4,6 +4,7 @@ import { HttpError } from "./security/errors";
 import { tokenMatches } from "./security/auth";
 import { allowRequest } from "./security/rateLimit";
 import { readJsonBody } from "./security/validate";
+import { handleAccountRoute } from "./account/routes";
 import { getProvider, modelFor } from "./providers";
 import { parseChat, parseCheck, parseLesson, parseOutline } from "./agents/requests";
 import { chatMessages, checkMessages, lessonMessages, outlineMessages } from "./agents/prompts";
@@ -24,7 +25,7 @@ function cors(origin: string | null, env: Env): Record<string, string> {
   if (origin && origin === env.ALLOWED_ORIGIN) { // exact match only, never a wildcard
     return {
       "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-Access-Token", "Access-Control-Max-Age": "600", Vary: "Origin"
+      "Access-Control-Allow-Headers": "Content-Type, X-Access-Token, Authorization", "Access-Control-Max-Age": "600", Vary: "Origin"
     };
   }
   return { Vary: "Origin" };
@@ -77,9 +78,15 @@ export default {
     const url = new URL(request.url);
     try {
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { ...baseHeaders(), ...headers } });
-      if (url.pathname === "/api/health" && request.method === "GET") return json({ ok: true, service: "ai-academy-api", version: "0.3.0" }, 200, headers);
+      if (url.pathname === "/api/health" && request.method === "GET") return json({ ok: true, service: "ai-academy-api", version: "0.4.0" }, 200, headers);
 
-      // Everything below needs the access token, and failed attempts count against the rate limit.
+      // Account registration, email verification, sessions and user-scoped sync use
+      // per-user bearer sessions; they do not depend on the legacy shared AI token.
+      const accountResponse = await handleAccountRoute(request, env, url.pathname);
+      if (accountResponse) return new Response(accountResponse.body, { status: accountResponse.status, statusText: accountResponse.statusText, headers: { ...Object.fromEntries(accountResponse.headers), ...headers } });
+
+      // Existing AI endpoints remain protected by the legacy shared token until
+      // the frontend migration to per-user sessions is completed.
       const limit = Number(env.RATE_LIMIT_PER_MINUTE) || 30;
       const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
       if (!allowRequest(ip, limit)) throw new HttpError(429, "rate_limited");

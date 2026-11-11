@@ -25,7 +25,7 @@ const baseHeaders = (): Record<string, string> => ({
 function cors(origin: string | null, env: Env): Record<string, string> {
   if (origin && origin === env.ALLOWED_ORIGIN) { // exact match only, never a wildcard
     return {
-      "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, X-Access-Token, Authorization", "Access-Control-Max-Age": "600", Vary: "Origin"
     };
   }

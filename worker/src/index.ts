@@ -84,7 +84,11 @@ export default {
       // Account registration, email verification, sessions and user-scoped sync use
       // per-user bearer sessions; they do not depend on the legacy shared AI token.
       const accountResponse = await handleAccountRoute(request, env, url.pathname);
-      if (accountResponse) return new Response(accountResponse.body, { status: accountResponse.status, statusText: accountResponse.statusText, headers: { ...Object.fromEntries(accountResponse.headers), ...headers } });
+      if (accountResponse) {
+        const responseHeaders = new Headers(accountResponse.headers);
+        for (const [key, value] of Object.entries(headers)) responseHeaders.set(key, value);
+        return new Response(accountResponse.body, { status: accountResponse.status, statusText: accountResponse.statusText, headers: responseHeaders });
+      }
 
       const limit = Number(env.RATE_LIMIT_PER_MINUTE) || 30;
       const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";

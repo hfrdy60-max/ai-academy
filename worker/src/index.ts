@@ -63,7 +63,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
     messages = chatMessages(r.level, r.context, r.messages); finish = t => ({ reply: validateChatReply(t) });
   }
   const res = await provider.complete({ model, messages, maxTokens: s.maxTokens, temperature: s.temperature });
-  return { data: finish(res.text), meta: { model: res.model, usage: res.usage ?? null } };
+  return { data: finish(res.text), meta: { model: res.model, finishReason: res.finishReason ?? null, usage: res.usage ?? null } };
 }
 
 export default {

@@ -28,7 +28,6 @@ export function outlineMessages(c: CourseCtx, range?: { start: number; count: nu
     advanced: { chapters: 20, lessons: 100 }
   }[c.level];
   const batch = range ?? { start: 1, count: plan.chapters };
-  const isFull = batch.start === 1 && batch.count === plan.chapters;
   return [
     { role: "system", content: `${BASE}
 Role: expert curriculum architect. Learner level: ${LEVEL_TEXT[c.level]}.

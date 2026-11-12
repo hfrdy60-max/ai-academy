@@ -1,5 +1,5 @@
 import http from "node:http";
-import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones, putUserResult, listUserResults, trimUserResults, saveEmailVerification, consumeEmailVerification, issueSession, resolveSession, revokeSessionToken, DEFAULT_SESSION_TTL_MS, MAX_SESSION_TTL_MS } from "./.build/worker.mjs";
+import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones, putUserResult, listUserResults, trimUserResults, getUserProfile, putUserProfile, saveEmailVerification, consumeEmailVerification, issueSession, resolveSession, revokeSessionToken, DEFAULT_SESSION_TTL_MS, MAX_SESSION_TTL_MS } from "./.build/worker.mjs";
 
 // ---- fake "OpenRouter" upstream (tests OUR adapter; it is NOT the real service) ----
 let mode = "ok", calls = 0; const seen = [];
@@ -341,6 +341,36 @@ await trimUserResults(resultDb, "user_1234567890123456", "game", 20);
 t("D1 result trimming keeps only the newest bounded records of one type",
   /DELETE FROM user_results/.test(resultDbCalls[0].sql) && /ORDER BY updated_at DESC LIMIT \?/.test(resultDbCalls[0].sql) &&
   resultDbCalls[0].values.join("|") === "user_1234567890123456|game|user_1234567890123456|game|20");
+
+const profileDbCalls = [];
+const profileDb = {
+  prepare(sql) {
+    const call = { sql, values: [] }; profileDbCalls.push(call);
+    return {
+      bind(...values) { call.values = values; return this; },
+      async first() { return { payload: JSON.stringify({ displayName: "Student", dailyGoal: 3 }), updated_at: 700 }; },
+      async run() { return { success: true, meta: { changes: 1 } }; }
+    };
+  }
+};
+profileDbCalls.length = 0;
+const cloudProfile = await getUserProfile(profileDb, "user_1234567890123456");
+t("D1 profile lookup is owner-scoped and parses profile JSON",
+  /WHERE user_id = \?/.test(profileDbCalls[0].sql) &&
+  profileDbCalls[0].values[0] === "user_1234567890123456" &&
+  cloudProfile.payload.displayName === "Student" && cloudProfile.payload.dailyGoal === 3 && cloudProfile.updated_at === 700);
+profileDbCalls.length = 0;
+await putUserProfile(profileDb, "user_1234567890123456", { displayName: "Learner", dailyGoal: 4 }, 900);
+t("D1 profile upsert uses the account key and update timestamp",
+  profileDbCalls[0].sql.includes("ON CONFLICT(user_id)") &&
+  profileDbCalls[0].values[0] === "user_1234567890123456" &&
+  profileDbCalls[0].values[1] === JSON.stringify({ displayName: "Learner", dailyGoal: 4 }) &&
+  profileDbCalls[0].values[2] === 900);
+profileDbCalls.length = 0;
+let invalidProfileRejected = false;
+try { await putUserProfile(profileDb, "user_1234567890123456", { displayName: "x".repeat(41), dailyGoal: 4 }, 900); }
+catch (error) { invalidProfileRejected = error.message === "invalid_profile"; }
+t("D1 profile repository rejects invalid profile fields before writing", invalidProfileRejected && profileDbCalls.length === 0);
 let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_1234567890123456", "big", { data: "x".repeat(270000) }, 1); } catch { hugePayloadRejected = true; }
 t("D1 repository rejects oversized JSON records before writing", hugePayloadRejected);
 

@@ -1,13 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCourseList } from "../hooks/useCourses";
 import { courseProgress } from "../services/courseService";
 import { computeStats, XP_PER_LEVEL } from "../services/stats";
 import { fa } from "../lib/format";
 import ProgressBar from "../components/ProgressBar";
-
-type ExamResult = { id: string; date: number; correct: number; total: number; percent: number };
-type GameResult = { id: string; date: number; points: number; correct: number; answered: number; bestStreak: number };
+import { readExamHistory, readGameHistory } from "../services/resultService";
 
 const BADGES = [
   { at: 1, title: "شروع یادگیری", detail: "تکمیل اولین درس" },
@@ -16,15 +14,6 @@ const BADGES = [
   { at: 25, title: "دانش‌پژوه", detail: "تکمیل ۲۵ درس" },
   { at: 50, title: "استاد تلاش", detail: "تکمیل ۵۰ درس" }
 ];
-
-function readLocalResults<T extends { id: string; date: number }>(key: string, valid: (x: unknown) => x is T): T[] {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(value) ? value.filter(valid).slice(0, 20) : [];
-  } catch {
-    return [];
-  }
-}
 
 function printCertificate(title: string, subject: string, completedAt: string) {
   const popup = window.open("", "_blank");
@@ -40,28 +29,18 @@ function printCertificate(title: string, subject: string, completedAt: string) {
   popup.document.close();
 }
 
-function isExamResult(x: unknown): x is ExamResult {
-  if (!x || typeof x !== "object") return false;
-  const r = x as Record<string, unknown>;
-  return typeof r.id === "string" && typeof r.date === "number" &&
-    typeof r.correct === "number" && typeof r.total === "number" && typeof r.percent === "number";
-}
-
-function isGameResult(x: unknown): x is GameResult {
-  if (!x || typeof x !== "object") return false;
-  const r = x as Record<string, unknown>;
-  return typeof r.id === "string" && typeof r.date === "number" &&
-    typeof r.points === "number" && typeof r.correct === "number" &&
-    typeof r.answered === "number" && typeof r.bestStreak === "number";
-}
-
 export default function Progress() {
   const { courses, error } = useCourseList();
   const list = courses ?? [];
   const stats = useMemo(() => computeStats(list), [list]);
   const totals = useMemo(() => list.map(c => ({ course: c, ...courseProgress(c) })), [list]);
-  const examResults = useMemo(() => readLocalResults<ExamResult>("ai-academy:exam-results:v1", isExamResult), []);
-  const gameResults = useMemo(() => readLocalResults<GameResult>("ai-academy:game-results:v1", isGameResult), []);
+  const [examResults, setExamResults] = useState(readExamHistory);
+  const [gameResults, setGameResults] = useState(readGameHistory);
+  useEffect(() => {
+    const refresh = () => { setExamResults(readExamHistory()); setGameResults(readGameHistory()); };
+    window.addEventListener("ai-academy-results-change", refresh);
+    return () => window.removeEventListener("ai-academy-results-change", refresh);
+  }, []);
   const totalLessons = totals.reduce((n, x) => n + x.total, 0);
   const completed = totals.reduce((n, x) => n + x.done, 0);
   const earned = BADGES.filter(b => stats.totalCompleted >= b.at);
@@ -72,7 +51,7 @@ export default function Progress() {
     <div className="space-y-5">
       <header>
         <h1 className="text-xl font-extrabold md:text-2xl">پیشرفت من</h1>
-        <p className="muted mt-1 text-sm">گزارش یادگیری بر اساس درس‌ها، آزمون‌ها و بازی‌های ثبت‌شده روی همین دستگاه.</p>
+        <p className="muted mt-1 text-sm">گزارش یادگیری بر اساس دوره‌ها، سوابق آزمون و بازی؛ اطلاعات با حساب کاربری همگام می‌شوند.</p>
       </header>
       {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{error}</p>}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -92,7 +71,7 @@ export default function Progress() {
           <div className="rounded-xl bg-slate-100 p-3 dark:bg-white/5"><p className="muted text-xs">تعداد آزمون‌ها</p><p className="mt-1 text-xl font-extrabold">{fa(examResults.length)}</p><p className="muted mt-1 text-xs">بهترین نمره: {fa(bestExam)}٪</p></div>
           <div className="rounded-xl bg-slate-100 p-3 dark:bg-white/5"><p className="muted text-xs">بازی‌های ثبت‌شده</p><p className="mt-1 text-xl font-extrabold">{fa(gameResults.length)}</p><p className="muted mt-1 text-xs">بالاترین امتیاز: {fa(bestGame)}</p></div>
         </div>
-        <p className="muted text-xs">سوابق آزمون و بازی فقط در همین مرورگر و دستگاه ذخیره می‌شوند و با حساب دیگری همگام‌سازی نمی‌شوند.</p>
+        <p className="muted text-xs">با ورود به حساب، سوابق آزمون و بازی نیز مانند دوره‌ها بین دستگاه‌ها همگام‌سازی می‌شوند.</p>
       </section>
       <section className="card space-y-3">
         <h2 className="font-bold">پیشرفت دوره‌ها</h2>

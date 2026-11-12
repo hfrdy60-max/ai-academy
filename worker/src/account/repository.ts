@@ -207,6 +207,58 @@ export async function listUserTombstones(db: D1Database, userId: string, limit =
   );
 }
 
+export interface StoredUserResult {
+  id: string;
+  result_type: "exam" | "game";
+  payload: unknown;
+  created_at: number;
+  updated_at: number;
+}
+
+export async function putUserResult(
+  db: D1Database, userId: string, type: "exam" | "game", resultId: string, payload: unknown, now: number
+): Promise<void> {
+  assertUserId(userId);
+  assertId(resultId, "invalid_record_id");
+  if (!Number.isSafeInteger(now) || now < 0) throw new Error("invalid_timestamp");
+  const serialized = serializePayload(payload);
+  if (!payload || typeof payload !== "object" ||
+      !Number.isSafeInteger((payload as Record<string, unknown>).date) ||
+      ((payload as Record<string, unknown>).date as number) < 0) {
+    throw new Error("invalid_result_timestamp");
+  }
+  const resultDate = (payload as Record<string, unknown>).date as number;
+  await db.prepare(
+    "INSERT INTO user_results (user_id, result_type, result_id, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) " +
+    "ON CONFLICT(user_id, result_type, result_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at " +
+    "WHERE user_results.updated_at <= excluded.updated_at"
+  ).bind(userId, type, resultId, serialized, now, resultDate).run();
+}
+
+export async function listUserResults(db: D1Database, userId: string, limit = 40): Promise<StoredUserResult[]> {
+  assertUserId(userId);
+  const safeLimit = Number.isInteger(limit) ? Math.min(100, Math.max(1, limit)) : 40;
+  const result = await db.prepare(
+    "SELECT result_id AS id, result_type, payload, created_at, updated_at FROM user_results " +
+    "WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?"
+  ).bind(userId, safeLimit).all<StoredUserResult>();
+  return (result.results ?? []).map(row => {
+    let payload: unknown;
+    try { payload = JSON.parse(row.payload as unknown as string); }
+    catch { throw new Error("stored_payload_invalid"); }
+    return { ...row, payload };
+  }).filter(row => row.result_type === "exam" || row.result_type === "game");
+}
+
+export async function trimUserResults(db: D1Database, userId: string, type: "exam" | "game", keep = 20): Promise<void> {
+  assertUserId(userId);
+  const safeKeep = Number.isInteger(keep) ? Math.min(50, Math.max(1, keep)) : 20;
+  await db.prepare(
+    "DELETE FROM user_results WHERE user_id = ? AND result_type = ? AND result_id NOT IN (" +
+    "SELECT result_id FROM user_results WHERE user_id = ? AND result_type = ? ORDER BY updated_at DESC LIMIT ?)"
+  ).bind(userId, type, userId, type, safeKeep).run();
+}
+
 export async function saveEmailVerification(
   db: D1Database, value: unknown, codeHash: string, createdAt: number, expiresAt: number
 ): Promise<void> {

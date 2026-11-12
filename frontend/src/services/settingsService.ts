@@ -35,10 +35,20 @@ function normalizeProfile(p: Partial<Profile> | undefined): Profile {
 }
 
 export async function getProfileSyncSnapshot(): Promise<ProfileSyncSnapshot> {
-  const [profile, updatedAt] = await Promise.all([
-    getProfile(), getSetting<number>(KEY.profileUpdatedAt)
+  const [storedProfile, updatedAt] = await Promise.all([
+    getSetting<Partial<Profile>>(KEY.profile), getSetting<number>(KEY.profileUpdatedAt)
   ]);
-  return { profile, updatedAt: Number.isSafeInteger(updatedAt) && (updatedAt as number) >= 0 ? updatedAt as number : 0 };
+  if (Number.isSafeInteger(updatedAt) && (updatedAt as number) >= 0) {
+    return { profile: normalizeProfile(storedProfile), updatedAt: updatedAt as number };
+  }
+  // One-time migration: profiles saved by older app versions have no sync timestamp.
+  // Mark a real stored profile as current so it is not replaced by another device's defaults.
+  if (storedProfile && typeof storedProfile.displayName === "string") {
+    const migratedAt = Date.now();
+    await setSetting(KEY.profileUpdatedAt, migratedAt);
+    return { profile: normalizeProfile(storedProfile), updatedAt: migratedAt };
+  }
+  return { profile: normalizeProfile(storedProfile), updatedAt: 0 };
 }
 
 export async function saveSyncedProfile(profile: Profile, updatedAt: number): Promise<void> {

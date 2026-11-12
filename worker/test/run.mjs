@@ -371,18 +371,18 @@ let invalidProfileRejected = false;
 try { await putUserProfile(profileDb, "user_1234567890123456", { displayName: "x".repeat(41), dailyGoal: 4 }, 900); }
 catch (error) { invalidProfileRejected = error.message === "invalid_profile"; }
 t("D1 profile repository rejects invalid profile fields before writing", invalidProfileRejected && profileDbCalls.length === 0);
-let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_1234567890123456", "big", { data: "x".repeat(270000) }, 1); } catch { hugePayloadRejected = true; }
+let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_1234567890123456", "big", { data: "x".repeat(1600000) }, 1); } catch { hugePayloadRejected = true; }
 t("D1 repository rejects oversized JSON records before writing", hugePayloadRejected);
 
 dbCalls.length = 0;
 let boundaryPayloadAccepted = true;
 try { await putUserCourse(fakeDb, "user_1234567890123456", "boundary", { data: "x".repeat(256 * 1024 - 11) }, 1); } catch { boundaryPayloadAccepted = false; }
-t("D1 repository accepts JSON payload at exactly 256 KiB", boundaryPayloadAccepted && dbCalls.length === 2 && /INSERT INTO user_courses/.test(dbCalls[1].sql));
+t("D1 repository accepts JSON payload at exactly 1.5 MB", boundaryPayloadAccepted && dbCalls.length === 2 && /INSERT INTO user_courses/.test(dbCalls[1].sql));
 
 dbCalls.length = 0;
 let overBoundaryPayloadRejected = false;
 try { await putUserChat(fakeDb, "user_1234567890123456", "over-boundary", { data: "x".repeat(256 * 1024 - 10) }, 1); } catch (error) { overBoundaryPayloadRejected = error.message === "invalid_payload"; }
-t("D1 repository rejects JSON payload one byte above 256 KiB before writing", overBoundaryPayloadRejected && dbCalls.length === 0);
+t("D1 repository rejects JSON payload one byte above 1.5 MB before writing", overBoundaryPayloadRejected && dbCalls.length === 0);
 
 let circularPayloadRejected = false;
 const circularPayload = {}; circularPayload.self = circularPayload;

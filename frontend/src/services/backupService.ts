@@ -29,6 +29,18 @@ function validateResults(value: unknown, kind: "exam" | "game"): Record<string, 
   });
 }
 
+function mergeResults(local: unknown[], incoming: Record<string, unknown>[]): Record<string, unknown>[] {
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const item of [...local, ...incoming]) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const row = item as Record<string, unknown>;
+    if (typeof row.id !== "string" || typeof row.date !== "number" || !Number.isFinite(row.date)) continue;
+    const previous = byId.get(row.id);
+    if (!previous || row.date > (previous.date as number)) byId.set(row.id, row);
+  }
+  return [...byId.values()].sort((a, b) => (b.date as number) - (a.date as number)).slice(0, 20);
+}
+
 /** The access token and any API key are deliberately NOT exported. */
 export async function exportData(): Promise<string> {
   const [courses, chats, profile] = await Promise.all([listCourses(), listThreads(), getProfile()]);
@@ -77,19 +89,35 @@ export async function importData(text: string): Promise<{ courses: number; chats
 
   const previousExam = localStorage.getItem(EXAM_KEY);
   const previousGame = localStorage.getItem(GAME_KEY);
+  const mergedExams = mergeResults(readLocalArray(EXAM_KEY), examResults);
+  const mergedGames = mergeResults(readLocalArray(GAME_KEY), gameResults);
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction([STORE.courses, STORE.chats, STORE.settings], "readwrite");
-    for (const course of courses) tx.objectStore(STORE.courses).put(course);
-    for (const chat of chats) tx.objectStore(STORE.chats).put(chat);
+    const courseStore = tx.objectStore(STORE.courses);
+    const chatStore = tx.objectStore(STORE.chats);
+    for (const course of courses) {
+      const request = courseStore.get(course.id);
+      request.onsuccess = () => {
+        const current = request.result as typeof course | undefined;
+        if (!current || course.updatedAt > current.updatedAt) courseStore.put(course);
+      };
+    }
+    for (const chat of chats) {
+      const request = chatStore.get(chat.id);
+      request.onsuccess = () => {
+        const current = request.result as typeof chat | undefined;
+        if (!current || chat.updatedAt > current.updatedAt) chatStore.put(chat);
+      };
+    }
     if (profile) tx.objectStore(STORE.settings).put({ key: "profile", value: profile });
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error ?? new Error("وارد کردن فایل پشتیبان ناموفق بود."));
     tx.onabort = () => reject(tx.error ?? new Error("وارد کردن فایل پشتیبان لغو شد؛ هیچ تغییری ذخیره نشد."));
   });
   try {
-    localStorage.setItem(EXAM_KEY, JSON.stringify(examResults));
-    localStorage.setItem(GAME_KEY, JSON.stringify(gameResults));
+    localStorage.setItem(EXAM_KEY, JSON.stringify(mergedExams));
+    localStorage.setItem(GAME_KEY, JSON.stringify(mergedGames));
   } catch {
     try {
       if (previousExam === null) localStorage.removeItem(EXAM_KEY); else localStorage.setItem(EXAM_KEY, previousExam);
@@ -97,7 +125,8 @@ export async function importData(text: string): Promise<{ courses: number; chats
     } catch { /* best effort */ }
     throw new Error("دوره‌ها و گفتگوها وارد شدند، اما ذخیره سوابق آزمون و بازی ممکن نشد. فضای ذخیره‌سازی را بررسی کنید.");
   }
-  return { courses: courses.length, chats: chats.length, exams: examResults.length, games: gameResults.length };
+  window.dispatchEvent(new Event("ai-academy-data-change"));
+  return { courses: courses.length, chats: chats.length, exams: mergedExams.length, games: mergedGames.length };
 }
 
 /** Remove IndexedDB data and result histories stored separately in localStorage. */

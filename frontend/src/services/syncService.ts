@@ -3,6 +3,8 @@ import { listThreads, saveThread, purgeThread } from "../database/chats";
 import { accountApi } from "./accountService";
 import type { Course } from "../types/course";
 import type { ChatThread } from "../types/chat";
+import type { Profile } from "../types/settings";
+import { getProfileSyncSnapshot, saveSyncedProfile } from "./settingsService";
 import { validateCourse, validateThread } from "./validate";
 import { deleteTombstone, listTombstones, saveTombstone, tombstoneId, type SyncTombstone } from "../database/tombstones";
 import {
@@ -12,6 +14,7 @@ import {
 
 interface CloudRecord<T> { id: string; payload: T; updated_at: number }
 interface CloudResultRecord { id: string; result_type: "exam" | "game"; payload: unknown; updated_at: number }
+interface CloudProfile { profile: unknown; updated_at: number }
 type SyncSummary = { courses: number; chats: number; exams: number; games: number };
 let syncInProgress = false;
 let activeSync: Promise<SyncSummary> | null = null;
@@ -42,13 +45,14 @@ export function syncAccountData(): Promise<SyncSummary> {
 
   syncInProgress = true;
   activeSync = (async () => {
-    const [localCourses, localChats, localTombstones, cloudCourses, cloudChats, cloudDeletions, localExams, localGames, cloudResults] = await Promise.all([
+    const [localCourses, localChats, localTombstones, cloudCourses, cloudChats, cloudDeletions, localExams, localGames, cloudResults, localProfile, cloudProfile] = await Promise.all([
       listCourses(), listThreads(), listTombstones(),
       accountApi<{ records: CloudRecord<Course>[] }>("/api/sync/courses", "GET"),
       accountApi<{ records: CloudRecord<ChatThread>[] }>("/api/sync/chats", "GET"),
       accountApi<{ deletions: { record_type: "course" | "chat"; record_id: string; deleted_at: number }[] }>("/api/sync/deletions", "GET"),
       Promise.resolve(readExamHistory()), Promise.resolve(readGameHistory()),
-      accountApi<{ records: CloudResultRecord[] }>("/api/sync/results", "GET")
+      accountApi<{ records: CloudResultRecord[] }>("/api/sync/results", "GET"),
+      getProfileSyncSnapshot(), accountApi<CloudProfile>("/api/sync/profile", "GET")
     ]);
 
     const tombstones = new Map<string, SyncTombstone>();
@@ -119,6 +123,26 @@ export function syncAccountData(): Promise<SyncSummary> {
       ...games.map(payload => ({ id: payload.id, type: "game", payload }))
     ];
     await accountApi("/api/sync/results", "PUT", { records: resultRecords });
+
+    const remoteProfileValue = cloudProfile.profile;
+    const remoteProfile = remoteProfileValue && typeof remoteProfileValue === "object" &&
+      !Array.isArray(remoteProfileValue) &&
+      typeof (remoteProfileValue as Record<string, unknown>).displayName === "string" &&
+      ((remoteProfileValue as Record<string, unknown>).displayName as string).length <= 40 &&
+      Number.isInteger((remoteProfileValue as Record<string, unknown>).dailyGoal) &&
+      ((remoteProfileValue as Record<string, unknown>).dailyGoal as number) >= 1 &&
+      ((remoteProfileValue as Record<string, unknown>).dailyGoal as number) <= 10
+      ? remoteProfileValue as Profile : null;
+    const remoteProfileUpdatedAt = Number.isSafeInteger(cloudProfile.updated_at) && cloudProfile.updated_at >= 0
+      ? cloudProfile.updated_at : 0;
+    if (remoteProfile && remoteProfileUpdatedAt > localProfile.updatedAt) {
+      await saveSyncedProfile(remoteProfile, remoteProfileUpdatedAt);
+    } else {
+      await accountApi("/api/sync/profile", "PUT", {
+        profile: localProfile.profile,
+        updatedAt: localProfile.updatedAt
+      });
+    }
     return { courses: liveCourses.length, chats: liveChats.length, exams: exams.length, games: games.length };
   })().finally(() => {
     syncInProgress = false;

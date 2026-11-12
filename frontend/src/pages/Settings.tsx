@@ -92,7 +92,7 @@ export default function Settings() {
 
       <form onSubmit={e => void onSaveProfile(e)} className="card space-y-4" aria-labelledby="s-profile">
         <h2 id="s-profile" className="font-bold">پروفایل</h2>
-        <p className="muted text-sm leading-7">حساب شما با ایمیل فعال است؛ تنظیمات نمایشی و هدف روزانه فعلاً روی همین دستگاه ذخیره می‌شوند.</p>
+        <p className="muted text-sm leading-7">پروفایل نمایشی و هدف روزانه روی دستگاه ذخیره می‌شوند و پس از ورود به حساب بین دستگاه‌ها همگام‌سازی خواهند شد.</p>
         <div><label htmlFor="p-name" className="mb-1 block text-sm font-bold">نام نمایشی</label><input id="p-name" className="input" maxLength={40} value={name} onChange={e => setName(e.target.value)} /></div>
         <div><label htmlFor="p-goal" className="mb-1 block text-sm font-bold">هدف روزانه (تعداد درس در روز)</label>
           <select id="p-goal" className="input" value={goal} onChange={e => setGoal(e.target.value)}>{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => <option key={n} value={n}>{fa(n)} درس</option>)}</select></div>

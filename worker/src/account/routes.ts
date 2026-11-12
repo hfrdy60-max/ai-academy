@@ -83,6 +83,19 @@ function syncRecord(value: unknown, kind: "course" | "chat"): { id: string; payl
   return { id, payload };
 }
 
+function pageParams(request: Request, defaultLimit: number, maximumLimit: number): { limit: number; offset: number } {
+  const params = new URL(request.url).searchParams;
+  const rawLimit = params.get("limit");
+  const rawOffset = params.get("offset");
+  const limit = rawLimit === null ? defaultLimit : Number(rawLimit);
+  const offset = rawOffset === null ? 0 : Number(rawOffset);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > maximumLimit ||
+      !Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000) {
+    throw new HttpError(400, "invalid_pagination");
+  }
+  return { limit, offset };
+}
+
 export async function handleAccountRoute(request: Request, env: Env, path: string): Promise<Response | null> {
   const method = request.method;
   if (!path.startsWith("/api/auth/") && !path.startsWith("/api/sync/")) return null;
@@ -145,7 +158,8 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
 
   if (path === "/api/sync/deletions" && method === "GET") {
     const user = await currentUser(request, env);
-    return json({ ok: true, deletions: await listUserTombstones(env.DB, user.userId, 2000) });
+    const page = pageParams(request, 500, 2000);
+    return json({ ok: true, deletions: await listUserTombstones(env.DB, user.userId, page.limit, page.offset) });
   }
   if (path === "/api/sync/deletions" && method === "PUT") {
     const user = await currentUser(request, env);
@@ -231,7 +245,8 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
   }
   if (path === "/api/sync/courses" && method === "GET") {
     const user = await currentUser(request, env);
-    return json({ ok: true, records: await listUserCourses(env.DB, user.userId, 200) });
+    const page = pageParams(request, 25, 200);
+    return json({ ok: true, records: await listUserCourses(env.DB, user.userId, page.limit, page.offset) });
   }
   if (path === "/api/sync/courses" && method === "PUT") {
     const user = await currentUser(request, env);
@@ -245,7 +260,8 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
   }
   if (path === "/api/sync/chats" && method === "GET") {
     const user = await currentUser(request, env);
-    return json({ ok: true, records: await listUserChats(env.DB, user.userId, 200) });
+    const page = pageParams(request, 25, 200);
+    return json({ ok: true, records: await listUserChats(env.DB, user.userId, page.limit, page.offset) });
   }
   if (path === "/api/sync/chats" && method === "PUT") {
     const user = await currentUser(request, env);

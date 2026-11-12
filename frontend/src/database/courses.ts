@@ -22,11 +22,18 @@ export async function deleteCourse(id: string): Promise<void> {
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction([STORE.courses, STORE.tombstones], "readwrite");
-    tx.objectStore(STORE.courses).delete(id);
-    const deletedAt = Date.now();
-    tx.objectStore(STORE.tombstones).put({
-      id: "course:" + id, type: "course", recordId: id, deletedAt, synced: false
-    });
+    const recordStore = tx.objectStore(STORE.courses);
+    const lookup = recordStore.get(id);
+    lookup.onsuccess = () => {
+      const current = lookup.result as { updatedAt?: unknown } | undefined;
+      const previousUpdatedAt = Number.isSafeInteger(current?.updatedAt) && (current?.updatedAt as number) >= 0
+        ? current?.updatedAt as number : 0;
+      const deletedAt = Math.max(Date.now(), previousUpdatedAt + 1);
+      recordStore.delete(id);
+      tx.objectStore(STORE.tombstones).put({
+        id: "course:" + id, type: "course", recordId: id, deletedAt, synced: false
+      });
+    };
     tx.oncomplete = () => {
       window.dispatchEvent(new Event("ai-academy-data-change"));
       resolve();

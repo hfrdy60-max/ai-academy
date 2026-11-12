@@ -56,6 +56,7 @@ export async function saveSyncedProfile(profile: Profile, updatedAt: number): Pr
   if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("زمان پروفایل نامعتبر است.");
   await setSetting(KEY.profile, clean);
   await setSetting(KEY.profileUpdatedAt, updatedAt);
+  window.dispatchEvent(new Event("ai-academy-profile-change"));
 }
 
 export async function saveProfile(p: Profile): Promise<Profile> {
@@ -64,6 +65,7 @@ export async function saveProfile(p: Profile): Promise<Profile> {
   const clean: Profile = { displayName: p.displayName.trim().slice(0, 40), dailyGoal: goal };
   await setSetting(KEY.profile, clean);
   await setSetting(KEY.profileUpdatedAt, Date.now());
+  window.dispatchEvent(new Event("ai-academy-profile-change"));
   window.dispatchEvent(new Event("ai-academy-data-change"));
   return clean;
 }

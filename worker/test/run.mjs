@@ -620,6 +620,53 @@ t("sync API rejects invalid pagination parameters before querying records",
   badPageResponse.status === 400 && badPageBody.error === "invalid_pagination" &&
   !accountRouteCalls.some(call => call.sql.includes("FROM user_chats")));
 
+const coursePutRequest = body => new Request("https://api.test/api/sync/courses", {
+  method: "PUT",
+  headers: { Origin: ENV.ALLOWED_ORIGIN, Authorization: `Bearer ${accountRouteToken}`, "Content-Type": "application/json" },
+  body: JSON.stringify(body)
+});
+const lessonContentFixture = {
+  intro: "مقدمه",
+  objectives: ["هدف اول"],
+  explanation: "توضیح کامل درس",
+  examples: ["مثال"],
+  notes: ["نکته"],
+  exercises: [{ question: "تمرین", hint: "", sampleAnswer: "" }],
+  quiz: [{ question: "سؤال", options: ["الف", "ب"], correctIndex: 0, explanation: "شرح" }],
+  summary: "جمع‌بندی"
+};
+const validCourseFixture = {
+  id: "course-api-valid", title: "برق خودرو", description: "", subject: "برق", level: "beginner",
+  goal: "یادگیری", isDemo: false, createdAt: 100, updatedAt: 200,
+  chapters: [{ id: "chapter-api-1", title: "مبانی", lessons: [
+    { id: "lesson-api-1", title: "باتری", completed: false, content: lessonContentFixture, contentSource: "manual" }
+  ] }]
+};
+accountRouteCalls.length = 0;
+const validCourseResponse = await worker.fetch(coursePutRequest({ records: [
+  { id: validCourseFixture.id, payload: validCourseFixture }
+] }), accountRouteEnv);
+const validCourseBody = await validCourseResponse.json();
+t("course sync API accepts a complete validated lesson content structure",
+  validCourseResponse.status === 200 && validCourseBody.saved === 1 &&
+  accountRouteCalls.some(call => call.sql.includes("INSERT INTO user_courses")));
+const invalidCourseFixture = {
+  ...validCourseFixture,
+  id: "course-api-invalid",
+  chapters: [{ id: "chapter-api-1", title: "مبانی", lessons: [
+    { id: "lesson-duplicate", title: "باتری", completed: false },
+    { id: "lesson-duplicate", title: "دینام", completed: false }
+  ] }]
+};
+accountRouteCalls.length = 0;
+const invalidCourseResponse = await worker.fetch(coursePutRequest({ records: [
+  { id: invalidCourseFixture.id, payload: invalidCourseFixture }
+] }), accountRouteEnv);
+const invalidCourseBody = await invalidCourseResponse.json();
+t("course sync API rejects duplicate lesson IDs before database writes",
+  invalidCourseResponse.status === 400 && invalidCourseBody.error === "invalid_course" &&
+  !accountRouteCalls.some(call => call.sql.includes("INSERT INTO user_courses")));
+
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }
 console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);

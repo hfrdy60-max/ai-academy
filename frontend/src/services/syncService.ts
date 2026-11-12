@@ -1,5 +1,5 @@
-import { listCourses, saveCourse } from "../database/courses";
-import { listThreads, saveThread } from "../database/chats";
+import { listCourses, saveCourse, purgeCourse } from "../database/courses";
+import { listThreads, saveThread, purgeThread } from "../database/chats";
 import { accountApi } from "./accountService";
 import type { Course } from "../types/course";
 import type { ChatThread } from "../types/chat";
@@ -58,21 +58,28 @@ export function syncAccountData(): Promise<{ courses: number; chats: number }> {
     const courses = mergeByUpdatedAt(localCourses, cloudCourses.records ?? [], validateCourse);
     const chats = mergeByUpdatedAt(localChats, cloudChats.records ?? [], validateThread);
 
-    const keepOrRemove = <T extends { id: string; updatedAt: number }>(items: T[], type: "course" | "chat"): T[] => {
+    const keepOrRemove = async <T extends { id: string; updatedAt: number }>(
+      items: T[], type: "course" | "chat"
+    ): Promise<T[]> => {
       const kept: T[] = [];
       for (const item of items) {
         const id = tombstoneId(type, item.id);
         const deletion = tombstones.get(id);
         if (!deletion) { kept.push(item); continue; }
-        if (deletion.deletedAt >= item.updatedAt) continue;
+        if (deletion.deletedAt >= item.updatedAt) {
+          // Remove stale local copies too; filtering the upload alone would leave them visible offline.
+          if (type === "course") await purgeCourse(item.id);
+          else await purgeThread(item.id);
+          continue;
+        }
         // A genuinely newer edit supersedes an older deletion marker.
         tombstones.delete(id);
       }
       return kept;
     };
 
-    const liveCourses = keepOrRemove(courses, "course");
-    const liveChats = keepOrRemove(chats, "chat");
+    const liveCourses = await keepOrRemove(courses, "course");
+    const liveChats = await keepOrRemove(chats, "chat");
     const priorIds = new Set(localTombstones.map(row => row.id));
     for (const row of tombstones.values()) await saveTombstone(row);
     for (const id of priorIds) if (!tombstones.has(id)) await deleteTombstone(id);

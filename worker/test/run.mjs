@@ -319,9 +319,13 @@ const resultDb = {
 };
 resultDbCalls.length = 0;
 await putUserResult(resultDb, "user_1234567890123456", "exam", "exam-1", { id: "exam-1", date: 500, correct: 4, total: 5, percent: 80 }, 1000);
+const expectedExamPayload = JSON.stringify({ id: "exam-1", date: 500, correct: 4, total: 5, percent: 80 });
 t("D1 exam result upsert is user-scoped and uses result date for conflict ordering",
-  /ON CONFLICT\(user_id, result_type, result_id\)/.test(resultDbCalls[0].sql) &&
-  resultDbCalls[0].values.join("|") === "user_1234567890123456|exam|exam-1|${JSON.stringify({ id: "exam-1", date: 500, correct: 4, total: 5, percent: 80 })}|1000|500");
+  /ON CONFLICT\\(user_id, result_type, result_id\\)/.test(resultDbCalls[0].sql) &&
+  resultDbCalls[0].values[0] === "user_1234567890123456" &&
+  resultDbCalls[0].values[1] === "exam" && resultDbCalls[0].values[2] === "exam-1" &&
+  resultDbCalls[0].values[3] === expectedExamPayload && resultDbCalls[0].values[4] === 1000 &&
+  resultDbCalls[0].values[5] === 500);
 resultDbCalls.length = 0;
 let badResultDateRejected = false;
 try { await putUserResult(resultDb, "user_1234567890123456", "game", "game-1", { id: "game-1", date: Number.NaN }, 1000); }

@@ -68,6 +68,13 @@ function validateGeneratedOutline(outline: Plan[], level: Level): Plan[] {
   return outline.map(ch => ({ title: ch.title.trim(), lessons: ch.lessons.map(x => x.trim()) }));
 }
 
+function nextCourseRevision(course: Course): number {
+  const revision = Math.max(course.updatedAt, course.createdAt);
+  const next = Math.max(Date.now(), revision + 1);
+  if (!Number.isSafeInteger(next)) throw new Error("زمان ویرایش دوره نامعتبر است.");
+  return next;
+}
+
 export function courseProgress(c: Course): CourseProgress {
   const lessons = c.chapters.flatMap(ch => ch.lessons);
   const done = lessons.filter(l => l.completed).length;
@@ -133,7 +140,7 @@ export async function saveCourseEdits(draft: Course): Promise<Course> {
     ...draft, ...info,
     chapters: draft.chapters.map(ch => ({ ...ch, title: ch.title.trim(), lessons: ch.lessons.map(l => ({ ...l, title: l.title.trim() })) })),
     lastLessonId: draft.lastLessonId && lessonIds.has(draft.lastLessonId) ? draft.lastLessonId : undefined,
-    updatedAt: Date.now()
+    updatedAt: nextCourseRevision(draft)
   };
   await saveCourse(saved);
   return saved;
@@ -147,8 +154,9 @@ export async function setLessonContent(courseId: string, lessonId: string, conte
   found.lesson.content = content;
   found.lesson.contentSource = source;
   found.lesson.contentModel = model || undefined;
-  found.lesson.contentUpdatedAt = Date.now();
-  c.updatedAt = Date.now();
+  const revision = nextCourseRevision(c);
+  found.lesson.contentUpdatedAt = revision;
+  c.updatedAt = revision;
   await saveCourse(c);
   return c;
 }
@@ -201,7 +209,7 @@ export async function touchLesson(courseId: string, lessonId: string): Promise<C
   const c = await mustGet(courseId);
   if (c.lastLessonId !== lessonId && findLesson(c, lessonId)) {
     c.lastLessonId = lessonId;
-    c.updatedAt = Date.now();
+    c.updatedAt = nextCourseRevision(c);
     await saveCourse(c);
   }
   return c;
@@ -213,7 +221,7 @@ export async function completeLesson(courseId: string, lessonId: string): Promis
   if (!found) throw new Error("این درس پیدا نشد.");
   if (!found.lesson.completed) { found.lesson.completed = true; found.lesson.completedAt = Date.now(); }
   c.lastLessonId = lessonId;
-  c.updatedAt = Date.now();
+  c.updatedAt = nextCourseRevision(c);
   await saveCourse(c);
   return c;
 }

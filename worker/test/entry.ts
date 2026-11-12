@@ -1,6 +1,6 @@
 export { default } from "../src/index";
 export { resetRateLimit } from "../src/security/rateLimit";
 export { normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches } from "../src/account/crypto";
-export { findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones, saveEmailVerification, consumeEmailVerification } from "../src/account/repository";
+export { findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones, putUserResult, listUserResults, trimUserResults, saveEmailVerification, consumeEmailVerification } from "../src/account/repository";
 
 export { issueSession, resolveSession, revokeSessionToken, DEFAULT_SESSION_TTL_MS, MAX_SESSION_TTL_MS } from "../src/account/session";

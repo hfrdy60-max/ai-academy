@@ -91,6 +91,7 @@ export async function importData(text: string): Promise<{ courses: number; chats
   const previousGame = localStorage.getItem(GAME_KEY);
   const mergedExams = mergeResults(readLocalArray(EXAM_KEY), examResults);
   const mergedGames = mergeResults(readLocalArray(GAME_KEY), gameResults);
+  const importedProfileAt = Date.now();
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction([STORE.courses, STORE.chats, STORE.settings], "readwrite");
@@ -110,7 +111,10 @@ export async function importData(text: string): Promise<{ courses: number; chats
         if (!current || chat.updatedAt > current.updatedAt) chatStore.put(chat);
       };
     }
-    if (profile) tx.objectStore(STORE.settings).put({ key: "profile", value: profile });
+    if (profile) {
+      tx.objectStore(STORE.settings).put({ key: "profile", value: profile });
+      tx.objectStore(STORE.settings).put({ key: "profile-updated-at", value: importedProfileAt });
+    }
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error ?? new Error("وارد کردن فایل پشتیبان ناموفق بود."));
     tx.onabort = () => reject(tx.error ?? new Error("وارد کردن فایل پشتیبان لغو شد؛ هیچ تغییری ذخیره نشد."));

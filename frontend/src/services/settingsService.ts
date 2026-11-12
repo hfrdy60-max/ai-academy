@@ -1,4 +1,4 @@
-import { getSetting, setSetting } from "../database/settings";
+import { getSetting, setSetting, setSettings } from "../database/settings";
 import type { AiSettings, Profile } from "../types/settings";
 
 const KEY = { profile: "profile", profileUpdatedAt: "profile-updated-at", ai: "ai", usage: "usage" } as const;
@@ -54,8 +54,7 @@ export async function getProfileSyncSnapshot(): Promise<ProfileSyncSnapshot> {
 export async function saveSyncedProfile(profile: Profile, updatedAt: number): Promise<void> {
   const clean = normalizeProfile(profile);
   if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("زمان پروفایل نامعتبر است.");
-  await setSetting(KEY.profile, clean);
-  await setSetting(KEY.profileUpdatedAt, updatedAt);
+  await setSettings({ [KEY.profile]: clean, [KEY.profileUpdatedAt]: updatedAt });
   window.dispatchEvent(new Event("ai-academy-profile-change"));
 }
 
@@ -63,8 +62,11 @@ export async function saveProfile(p: Profile): Promise<Profile> {
   const goal = Math.round(Number(p.dailyGoal));
   if (!Number.isFinite(goal) || goal < 1 || goal > 10) throw new Error("هدف روزانه باید بین ۱ تا ۱۰ درس باشد.");
   const clean: Profile = { displayName: p.displayName.trim().slice(0, 40), dailyGoal: goal };
-  await setSetting(KEY.profile, clean);
-  await setSetting(KEY.profileUpdatedAt, Date.now());
+  const previous = await getSetting<number>(KEY.profileUpdatedAt);
+  const previousRevision = Number.isSafeInteger(previous) && (previous as number) >= 0 ? previous as number : 0;
+  const updatedAt = Math.max(Date.now(), previousRevision + 1);
+  if (!Number.isSafeInteger(updatedAt)) throw new Error("نسخه پروفایل قابل ثبت نیست.");
+  await setSettings({ [KEY.profile]: clean, [KEY.profileUpdatedAt]: updatedAt });
   window.dispatchEvent(new Event("ai-academy-profile-change"));
   window.dispatchEvent(new Event("ai-academy-data-change"));
   return clean;

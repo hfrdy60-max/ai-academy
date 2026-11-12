@@ -88,7 +88,7 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
   if (!path.startsWith("/api/auth/") && !path.startsWith("/api/sync/")) return null;
   if (!env.DB) throw new HttpError(503, "database_not_configured");
 
-  const limit = Number(env.AUTH_RATE_LIMIT_PER_MINUTE) || 12;
+  const limit = Number(env.AUTH_RATE_LIMIT_PER_MINUTE) || 60;
   const ip = clientIp(request);
   if (!allowRequest(`auth:${ip}`, limit)) throw new HttpError(429, "rate_limited");
 

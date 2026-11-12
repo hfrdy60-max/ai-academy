@@ -88,7 +88,10 @@ export function syncAccountData(): Promise<{ courses: number; chats: number }> {
     for (const thread of liveChats) await saveThread(thread);
 
     const deletions = [...tombstones.values()].map(row => ({ type: row.type, id: row.recordId, deletedAt: row.deletedAt }));
-    await accountApi("/api/sync/deletions", "PUT", { deletions });
+    // Keep each request comfortably below the Worker body limit, even after many offline deletes.
+    for (let offset = 0; offset < deletions.length; offset += 500) {
+      await accountApi("/api/sync/deletions", "PUT", { deletions: deletions.slice(offset, offset + 500) });
+    }
     await accountApi("/api/sync/courses", "PUT", { records: liveCourses.map(payload => ({ id: payload.id, payload })) });
     await accountApi("/api/sync/chats", "PUT", { records: liveChats.map(payload => ({ id: payload.id, payload })) });
     return { courses: liveCourses.length, chats: liveChats.length };

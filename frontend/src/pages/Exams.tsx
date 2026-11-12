@@ -1,16 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCourseList } from "../hooks/useCourses";
 import { fa } from "../lib/format";
 import type { QuizItem } from "../types/course";
+import { readExamHistory, writeExamHistory, type ExamResult } from "../services/resultService";
 
 type Item = { courseId:string; courseTitle:string; lessonTitle:string; question:QuizItem };
-type ExamResult = { id:string; date:number; correct:number; total:number; percent:number };
-const RESULTS_KEY = "ai-academy:exam-results:v1";
-function readResults(): ExamResult[] {
-  try { const value = localStorage.getItem(RESULTS_KEY); const parsed = value ? JSON.parse(value) : []; return Array.isArray(parsed) ? parsed.filter(x => x && typeof x.id==="string" && typeof x.date==="number" && typeof x.correct==="number" && typeof x.total==="number" && typeof x.percent==="number").slice(0,20) : []; }
-  catch { return []; }
-}
 export default function Exams() {
   const { courses, error } = useCourseList();
   const items = useMemo<Item[]>(() => (courses ?? []).flatMap(c => c.chapters.flatMap(ch => ch.lessons.flatMap(l => (l.content?.quiz ?? []).map(question => ({courseId:c.id,courseTitle:c.title,lessonTitle:l.title,question}))))), [courses]);
@@ -18,13 +13,18 @@ export default function Exams() {
   const filteredItems = useMemo(() => selectedCourse === "all" ? items : items.filter(x => x.courseId === selectedCourse), [items, selectedCourse]);
   const [answers,setAnswers]=useState<Record<number,number>>({});
   const [submitted,setSubmitted]=useState(false);
-  const [history,setHistory]=useState<ExamResult[]>(readResults);
+  const [history,setHistory]=useState<ExamResult[]>(readExamHistory);
+  useEffect(() => {
+    const refresh = () => setHistory(readExamHistory());
+    window.addEventListener("ai-academy-results-change", refresh);
+    return () => window.removeEventListener("ai-academy-results-change", refresh);
+  }, []);
   const correct=filteredItems.reduce((n,x,i)=>n+(answers[i]===x.question.correctIndex?1:0),0);
   function submit(){
     if(Object.keys(answers).length!==filteredItems.length || submitted || !filteredItems.length) return;
     const result:ExamResult={id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,date:Date.now(),correct,total:filteredItems.length,percent:Math.round(correct/filteredItems.length*100)};
     const next=[result,...history].slice(0,20);
-    try { localStorage.setItem(RESULTS_KEY,JSON.stringify(next)); setHistory(next); } catch { /* Results remain visible for this session if storage is unavailable. */ }
+    try { writeExamHistory(next); setHistory(next); } catch { /* Results remain visible for this session if storage is unavailable. */ }
     setSubmitted(true);
   }
   if(courses===null) return <p className="muted" role="status">در حال بارگذاری آزمون‌ها…</p>;
@@ -42,7 +42,7 @@ export default function Exams() {
       </li>)}</ol>
       <div className="flex flex-wrap gap-2"><button className="btn btn-primary" disabled={Object.keys(answers).length!==filteredItems.length||submitted} onClick={submit}>ثبت و دیدن نتیجه</button>{submitted&&<button className="btn btn-ghost" onClick={()=>{setAnswers({});setSubmitted(false);}}>تکرار آزمون</button>}</div>
     </>}
-    <section className="card space-y-3"><div className="flex items-center justify-between gap-2"><h2 className="font-bold">سوابق آزمون</h2><span className="muted text-xs">آخرین ۲۰ نتیجه · ذخیره روی همین دستگاه</span></div>
+    <section className="card space-y-3"><div className="flex items-center justify-between gap-2"><h2 className="font-bold">سوابق آزمون</h2><span className="muted text-xs">آخرین ۲۰ نتیجه · همگام‌سازی با حساب کاربری در صورت ورود</span></div>
       {history.length===0?<p className="muted text-sm">هنوز آزمونی ثبت نکرده‌ای.</p>:<ol className="divide-y divide-slate-200 dark:divide-white/10">{history.map((result)=><li key={result.id} className="flex items-center justify-between gap-3 py-3 text-sm"><div><p className="font-semibold">{new Date(result.date).toLocaleString("fa-IR")}</p><p className="muted mt-1">{fa(result.correct)} پاسخ درست از {fa(result.total)}</p></div><strong className="text-lg">{fa(result.percent)}٪</strong></li>)}</ol>}
     </section>
   </div>;

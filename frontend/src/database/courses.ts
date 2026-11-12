@@ -13,6 +13,11 @@ export async function saveCourse(course: Course): Promise<void> {
   await withStore(STORE.courses, "readwrite", s => s.put(course));
 }
 
+/** Remove a locally stale copy while applying a tombstone received from the cloud. */
+export async function purgeCourse(id: string): Promise<void> {
+  await withStore(STORE.courses, "readwrite", store => store.delete(id));
+}
+
 export async function deleteCourse(id: string): Promise<void> {
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {

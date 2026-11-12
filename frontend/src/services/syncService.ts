@@ -3,16 +3,24 @@ import { listThreads, saveThread } from "../database/chats";
 import { accountApi } from "./accountService";
 import type { Course } from "../types/course";
 import type { ChatThread } from "../types/chat";
+import { validateCourse, validateThread } from "./validate";
 
 interface CloudRecord<T> { id: string; payload: T; updated_at: number }
 let syncInProgress = false;
 export function isAccountSyncInProgress(): boolean { return syncInProgress; }
 
-function mergeByUpdatedAt<T extends { id: string; updatedAt: number }>(local: T[], remote: CloudRecord<T>[]): T[] {
+function mergeByUpdatedAt<T extends { id: string; updatedAt: number }>(
+  local: T[], remote: CloudRecord<T>[], validate: (value: unknown, index: number) => T
+): T[] {
   const merged = new Map<string, T>();
-  for (const item of remote) {
-    if (item?.payload && typeof item.id === "string" && item.payload.id === item.id) merged.set(item.id, item.payload);
-  }
+  remote.forEach((record, index) => {
+    if (!record || typeof record.id !== "string" || !record.payload || record.payload.id !== record.id) return;
+    try {
+      const payload = validate(record.payload, index);
+      const previous = merged.get(payload.id);
+      if (!previous || payload.updatedAt > previous.updatedAt) merged.set(payload.id, payload);
+    } catch { /* Ignore invalid cloud rows; they must not corrupt local data. */ }
+  });
   for (const item of local) {
     const cloud = merged.get(item.id);
     if (!cloud || item.updatedAt >= cloud.updatedAt) merged.set(item.id, item);
@@ -30,8 +38,8 @@ export async function syncAccountData(): Promise<{ courses: number; chats: numbe
     accountApi<{ records: CloudRecord<Course>[] }>("/api/sync/courses", "GET"),
     accountApi<{ records: CloudRecord<ChatThread>[] }>("/api/sync/chats", "GET")
   ]);
-  const courses = mergeByUpdatedAt(localCourses, cloudCourses.records ?? []);
-  const chats = mergeByUpdatedAt(localChats, cloudChats.records ?? []);
+  const courses = mergeByUpdatedAt(localCourses, cloudCourses.records ?? [], validateCourse);
+  const chats = mergeByUpdatedAt(localChats, cloudChats.records ?? [], validateThread);
   for (const course of courses) await saveCourse(course);
   for (const thread of chats) await saveThread(thread);
   await accountApi("/api/sync/courses", "PUT", { records: courses.map(payload => ({ id: payload.id, payload })) });

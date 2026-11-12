@@ -139,7 +139,7 @@ export function syncAccountData(): Promise<SyncSummary> {
         const id = tombstoneId(type, item.id);
         const deletion = tombstones.get(id);
         if (!deletion) { kept.push(item); continue; }
-        if (deletion.deletedAt >= item.updatedAt) {
+        if (deletion.synced !== true || deletion.deletedAt >= item.updatedAt) {
           // Remove stale local copies too; filtering the upload alone would leave them visible offline.
           if (type === "course") await purgeCourse(item.id);
           else await purgeThread(item.id);

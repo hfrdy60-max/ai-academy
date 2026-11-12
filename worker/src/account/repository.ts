@@ -194,8 +194,9 @@ export async function putUserTombstone(
       .bind(userId, recordId).first<{ updated_at: number }>()
     : await db.prepare("SELECT CAST(json_extract(payload, '$.updatedAt') AS INTEGER) AS updated_at FROM user_chats WHERE user_id = ? AND thread_id = ? LIMIT 1")
       .bind(userId, recordId).first<{ updated_at: number }>();
-  const currentUpdatedAt = Number.isSafeInteger(currentVersion?.updated_at) && currentVersion.updated_at >= 0
-    ? currentVersion.updated_at : 0;
+  const currentUpdatedAtValue = currentVersion?.updated_at;
+  const currentUpdatedAt = Number.isSafeInteger(currentUpdatedAtValue) && (currentUpdatedAtValue as number) >= 0
+    ? currentUpdatedAtValue as number : 0;
   const effectiveDeletedAt = Math.max(deletedAt, serverNow, currentUpdatedAt + 1);
 
   await db.prepare(

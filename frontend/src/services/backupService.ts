@@ -29,7 +29,7 @@ function validateResults(value: unknown, kind: "exam" | "game"): Record<string, 
   });
 }
 
-function mergeResults(local: unknown[], incoming: Record<string, unknown>[]): Record<string, unknown>[] {
+function mergeResults(local: unknown[], incoming: unknown[]): Record<string, unknown>[] {
   const byId = new Map<string, Record<string, unknown>>();
   for (const item of [...local, ...incoming]) {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;

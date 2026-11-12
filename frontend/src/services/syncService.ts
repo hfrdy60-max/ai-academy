@@ -62,6 +62,22 @@ async function uploadRecordBatches<T extends { id: string; payload: unknown }>(
   if (batch.length) await accountApi(path, "PUT", { records: batch });
 }
 
+async function fetchAllPages<T, K extends "records" | "deletions">(
+  path: string, key: K, pageSize: number
+): Promise<T[]> {
+  const collected: T[] = [];
+  for (let offset = 0; offset <= 1_000_000; offset += pageSize) {
+    const response = await accountApi<Partial<Record<K, unknown>>>(
+      `${path}?limit=${pageSize}&offset=${offset}`, "GET"
+    );
+    const page = response[key];
+    if (!Array.isArray(page)) throw new Error("پاسخ صفحه‌بندی همگام‌سازی معتبر نیست.");
+    collected.push(...page as T[]);
+    if (page.length < pageSize) return collected;
+  }
+  throw new Error("تعداد داده‌های ابری از حد همگام‌سازی این نسخه بیشتر است.");
+}
+
 /** Merge local/cloud records while honoring deletion markers from every signed-in device. */
 export function syncAccountData(): Promise<SyncSummary> {
   if (activeSync) return activeSync;
@@ -70,9 +86,9 @@ export function syncAccountData(): Promise<SyncSummary> {
   activeSync = (async () => {
     const [localCourses, localChats, localTombstones, cloudCourses, cloudChats, cloudDeletions, localExams, localGames, cloudResults, localProfile, cloudProfile] = await Promise.all([
       listCourses(), listThreads(), listTombstones(),
-      accountApi<{ records: CloudRecord<Course>[] }>("/api/sync/courses", "GET"),
-      accountApi<{ records: CloudRecord<ChatThread>[] }>("/api/sync/chats", "GET"),
-      accountApi<{ deletions: { record_type: "course" | "chat"; record_id: string; deleted_at: number }[] }>("/api/sync/deletions", "GET"),
+      fetchAllPages<CloudRecord<Course>, "records">("/api/sync/courses", "records", 25),
+      fetchAllPages<CloudRecord<ChatThread>, "records">("/api/sync/chats", "records", 25),
+      fetchAllPages<{ record_type: "course" | "chat"; record_id: string; deleted_at: number }, "deletions">("/api/sync/deletions", "deletions", 500),
       Promise.resolve(readExamHistory()), Promise.resolve(readGameHistory()),
       accountApi<{ records: CloudResultRecord[] }>("/api/sync/results", "GET"),
       getProfileSyncSnapshot(), accountApi<CloudProfile>("/api/sync/profile", "GET")
@@ -80,7 +96,7 @@ export function syncAccountData(): Promise<SyncSummary> {
 
     const tombstones = new Map<string, SyncTombstone>();
     for (const row of localTombstones) tombstones.set(row.id, row);
-    for (const row of cloudDeletions.deletions ?? []) {
+    for (const row of cloudDeletions) {
       if ((row.record_type !== "course" && row.record_type !== "chat") ||
           typeof row.record_id !== "string" || !Number.isSafeInteger(row.deleted_at) || row.deleted_at < 0) continue;
       const id = tombstoneId(row.record_type, row.record_id);
@@ -90,8 +106,8 @@ export function syncAccountData(): Promise<SyncSummary> {
       }
     }
 
-    const courses = mergeByUpdatedAt(localCourses, cloudCourses.records ?? [], validateCourse);
-    const chats = mergeByUpdatedAt(localChats, cloudChats.records ?? [], validateThread);
+    const courses = mergeByUpdatedAt(localCourses, cloudCourses, validateCourse);
+    const chats = mergeByUpdatedAt(localChats, cloudChats, validateThread);
 
     const keepOrRemove = async <T extends { id: string; updatedAt: number }>(
       items: T[], type: "course" | "chat"

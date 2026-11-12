@@ -149,7 +149,8 @@ export async function putUserChat(
   if (!Number.isSafeInteger(now) || now < 0) throw new Error("invalid_timestamp");
   const payloadUpdatedAt = payload && typeof payload === "object"
     ? (payload as Record<string, unknown>).updatedAt : undefined;
-  if (!Number.isSafeInteger(payloadUpdatedAt) || (payloadUpdatedAt as number) < 0) throw new Error("invalid_payload_timestamp");
+  const safeUpdatedAt = Number.isSafeInteger(payloadUpdatedAt) && (payloadUpdatedAt as number) >= 0
+    ? payloadUpdatedAt as number : now;
   await db.prepare(
     "INSERT INTO user_chats (user_id, thread_id, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?) " +
     "ON CONFLICT(user_id, thread_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at " +

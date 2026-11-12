@@ -475,6 +475,57 @@ r = await worker.fetch(new Request("https://api.test/api/auth/me", {
 }), ENV);
 t("CORS preflight allows per-user Authorization bearer sessions", r.status === 204 && (r.headers.get("access-control-allow-headers") || "").toLowerCase().includes("authorization"));
 
+
+const accountRouteCalls = [];
+const accountRouteDb = {
+  prepare(sql) {
+    const call = { sql, values: [] }; accountRouteCalls.push(call);
+    return {
+      bind(...values) { call.values = values; return this; },
+      async first() {
+        if (sql.includes("FROM sessions s")) {
+          return { token_hash: call.values[0], user_id: "user_1234567890123456", created_at: 1, expires_at: Date.now() + 60000, email: "student@example.com" };
+        }
+        return null;
+      },
+      async all() { return { results: [] }; },
+      async run() { return { success: true, meta: { changes: 1 } }; }
+    };
+  }
+};
+const accountRouteToken = createOpaqueToken();
+const accountRouteEnv = { ...ENV, DB: accountRouteDb };
+const resultRequest = (method, body) => new Request("https://api.test/api/sync/results", {
+  method,
+  headers: { Origin: ENV.ALLOWED_ORIGIN, Authorization: `Bearer ${accountRouteToken}`, "Content-Type": "application/json" },
+  body: body === undefined ? undefined : JSON.stringify(body)
+});
+reset();
+let resultResponse = await worker.fetch(resultRequest("GET"), accountRouteEnv);
+let resultResponseBody = await resultResponse.json();
+t("account results GET requires a valid session and returns a records array",
+  resultResponse.status === 200 && resultResponseBody.ok === true && Array.isArray(resultResponseBody.records));
+accountRouteCalls.length = 0;
+const examFixture = { id: "exam-api-1", date: Date.now(), correct: 4, total: 5, percent: 80 };
+const gameFixture = { id: "game-api-1", date: Date.now(), points: 30, correct: 3, answered: 4, bestStreak: 2 };
+resultResponse = await worker.fetch(resultRequest("PUT", { records: [
+  { id: examFixture.id, type: "exam", payload: examFixture },
+  { id: gameFixture.id, type: "game", payload: gameFixture }
+] }), accountRouteEnv);
+resultResponseBody = await resultResponse.json();
+const resultWrites = accountRouteCalls.filter(call => call.sql.includes("INSERT INTO user_results"));
+t("account results PUT validates and saves exam/game histories for the authenticated user",
+  resultResponse.status === 200 && resultResponseBody.saved === 2 && resultWrites.length === 2 &&
+  resultWrites.every(call => call.values[0] === "user_1234567890123456"));
+const writesBeforeInvalid = accountRouteCalls.filter(call => call.sql.includes("INSERT INTO user_results")).length;
+resultResponse = await worker.fetch(resultRequest("PUT", { records: [
+  { id: "exam-api-invalid", type: "exam", payload: { id: "exam-api-invalid", date: Date.now(), correct: 4, total: 5, percent: 10 } }
+] }), accountRouteEnv);
+resultResponseBody = await resultResponse.json();
+t("account results PUT rejects inconsistent exam scores without writing", resultResponse.status === 400 &&
+  resultResponseBody.error === "invalid_exam_result" &&
+  accountRouteCalls.filter(call => call.sql.includes("INSERT INTO user_results")).length === writesBeforeInvalid);
+
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }
 console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);

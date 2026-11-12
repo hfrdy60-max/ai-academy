@@ -683,6 +683,29 @@ t("course sync API rejects duplicate lesson IDs before database writes",
   invalidCourseResponse.status === 400 && invalidCourseBody.error === "invalid_course" &&
   !accountRouteCalls.some(call => call.sql.includes("INSERT INTO user_courses")));
 
+const deleteSyncRequest = body => new Request("https://api.test/api/sync/deletions", {
+  method: "PUT",
+  headers: { Origin: ENV.ALLOWED_ORIGIN, Authorization: `Bearer ${accountRouteToken}`, "Content-Type": "application/json" },
+  body: JSON.stringify(body)
+});
+accountRouteCalls.length = 0;
+const deleteSyncResponse = await worker.fetch(deleteSyncRequest({ deletions: [
+  { type: "course", id: "course-api-valid", deletedAt: 1 }
+] }), accountRouteEnv);
+const deleteSyncBody = await deleteSyncResponse.json();
+t("deletion sync API accepts an authenticated deletion and removes the cloud course",
+  deleteSyncResponse.status === 200 && deleteSyncBody.saved === 1 &&
+  accountRouteCalls.some(call => call.sql.includes("INSERT INTO user_tombstones")) &&
+  accountRouteCalls.some(call => call.sql.includes("DELETE FROM user_courses")));
+accountRouteCalls.length = 0;
+const invalidDeleteSyncResponse = await worker.fetch(deleteSyncRequest({ deletions: [
+  { type: "account", id: "course-api-valid", deletedAt: Date.now() }
+] }), accountRouteEnv);
+const invalidDeleteSyncBody = await invalidDeleteSyncResponse.json();
+t("deletion sync API rejects unsupported record types before writing",
+  invalidDeleteSyncResponse.status === 400 && invalidDeleteSyncBody.error === "invalid_deletion" &&
+  !accountRouteCalls.some(call => call.sql.includes("INSERT INTO user_tombstones")));
+
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }
 console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);

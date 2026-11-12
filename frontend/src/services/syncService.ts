@@ -4,6 +4,7 @@ import { accountApi } from "./accountService";
 import type { Course } from "../types/course";
 import type { ChatThread } from "../types/chat";
 import { validateCourse, validateThread } from "./validate";
+import { deleteTombstone, listTombstones, saveTombstone, tombstoneId, type SyncTombstone } from "../database/tombstones";
 
 interface CloudRecord<T> { id: string; payload: T; updated_at: number }
 let syncInProgress = false;
@@ -29,28 +30,61 @@ function mergeByUpdatedAt<T extends { id: string; updatedAt: number }>(
   return [...merged.values()];
 }
 
-/** Merge local and cloud copies by last update, then persist the merged snapshot in both places. */
+/** Merge local/cloud records while honoring deletion markers from every signed-in device. */
 export function syncAccountData(): Promise<{ courses: number; chats: number }> {
-  // Share one in-flight operation across UI actions, reconnect events and data-change listeners.
-  // Callers await the real result instead of receiving a misleading { courses: 0, chats: 0 }.
   if (activeSync) return activeSync;
 
   syncInProgress = true;
   activeSync = (async () => {
-    const [localCourses, localChats, cloudCourses, cloudChats] = await Promise.all([
-      listCourses(), listThreads(),
+    const [localCourses, localChats, localTombstones, cloudCourses, cloudChats, cloudDeletions] = await Promise.all([
+      listCourses(), listThreads(), listTombstones(),
       accountApi<{ records: CloudRecord<Course>[] }>("/api/sync/courses", "GET"),
-      accountApi<{ records: CloudRecord<ChatThread>[] }>("/api/sync/chats", "GET")
+      accountApi<{ records: CloudRecord<ChatThread>[] }>("/api/sync/chats", "GET"),
+      accountApi<{ deletions: { record_type: "course" | "chat"; record_id: string; deleted_at: number }[] }>("/api/sync/deletions", "GET")
     ]);
+
+    const tombstones = new Map<string, SyncTombstone>();
+    for (const row of localTombstones) tombstones.set(row.id, row);
+    for (const row of cloudDeletions.deletions ?? []) {
+      if ((row.record_type !== "course" && row.record_type !== "chat") ||
+          typeof row.record_id !== "string" || !Number.isSafeInteger(row.deleted_at) || row.deleted_at < 0) continue;
+      const id = tombstoneId(row.record_type, row.record_id);
+      const previous = tombstones.get(id);
+      if (!previous || row.deleted_at > previous.deletedAt) {
+        tombstones.set(id, { id, type: row.record_type, recordId: row.record_id, deletedAt: row.deleted_at });
+      }
+    }
+
     const courses = mergeByUpdatedAt(localCourses, cloudCourses.records ?? [], validateCourse);
     const chats = mergeByUpdatedAt(localChats, cloudChats.records ?? [], validateThread);
 
-    for (const course of courses) await saveCourse(course);
-    for (const thread of chats) await saveThread(thread);
+    const keepOrRemove = <T extends { id: string; updatedAt: number }>(items: T[], type: "course" | "chat"): T[] => {
+      const kept: T[] = [];
+      for (const item of items) {
+        const id = tombstoneId(type, item.id);
+        const deletion = tombstones.get(id);
+        if (!deletion) { kept.push(item); continue; }
+        if (deletion.deletedAt >= item.updatedAt) continue;
+        // A genuinely newer edit supersedes an older deletion marker.
+        tombstones.delete(id);
+      }
+      return kept;
+    };
 
-    await accountApi("/api/sync/courses", "PUT", { records: courses.map(payload => ({ id: payload.id, payload })) });
-    await accountApi("/api/sync/chats", "PUT", { records: chats.map(payload => ({ id: payload.id, payload })) });
-    return { courses: courses.length, chats: chats.length };
+    const liveCourses = keepOrRemove(courses, "course");
+    const liveChats = keepOrRemove(chats, "chat");
+    const priorIds = new Set(localTombstones.map(row => row.id));
+    for (const row of tombstones.values()) await saveTombstone(row);
+    for (const id of priorIds) if (!tombstones.has(id)) await deleteTombstone(id);
+
+    for (const course of liveCourses) await saveCourse(course);
+    for (const thread of liveChats) await saveThread(thread);
+
+    const deletions = [...tombstones.values()].map(row => ({ type: row.type, id: row.recordId, deletedAt: row.deletedAt }));
+    await accountApi("/api/sync/deletions", "PUT", { deletions });
+    await accountApi("/api/sync/courses", "PUT", { records: liveCourses.map(payload => ({ id: payload.id, payload })) });
+    await accountApi("/api/sync/chats", "PUT", { records: liveChats.map(payload => ({ id: payload.id, payload })) });
+    return { courses: liveCourses.length, chats: liveChats.length };
   })().finally(() => {
     syncInProgress = false;
     activeSync = null;

@@ -8,6 +8,11 @@ export async function saveThread(t: ChatThread): Promise<void> {
   await withStore(STORE.chats, "readwrite", s => s.put(t));
 }
 
+/** Remove a locally stale copy while applying a tombstone received from the cloud. */
+export async function purgeThread(id: string): Promise<void> {
+  await withStore(STORE.chats, "readwrite", store => store.delete(id));
+}
+
 export async function deleteThread(id: string): Promise<void> {
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {

@@ -3,7 +3,7 @@ import { HttpError } from "../security/errors";
 import { allowRequest } from "../security/rateLimit";
 import { readJsonBody, obj, str } from "../security/validate";
 import { normalizeEmail } from "./crypto";
-import { findUserByEmail, insertUser, saveEmailVerification, consumeEmailVerification, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones, putUserResult, listUserResults, trimUserResults } from "./repository";
+import { findUserByEmail, insertUser, saveEmailVerification, consumeEmailVerification, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones, putUserResult, listUserResults, trimUserResults, getUserProfile, putUserProfile } from "./repository";
 import { issueSession, resolveSession, revokeSessionToken } from "./session";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -164,6 +164,26 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
     if (new Set(checked.map(x => x.type + ":" + x.id)).size !== checked.length) throw new HttpError(400, "duplicate_deletions");
     for (const item of checked) await putUserTombstone(env.DB, user.userId, item.type, item.id, item.deletedAt);
     return json({ ok: true, saved: checked.length });
+  }
+  if (path === "/api/sync/profile" && method === "GET") {
+    const user = await currentUser(request, env);
+    const record = await getUserProfile(env.DB, user.userId);
+    return json({ ok: true, profile: record?.payload ?? null, updated_at: record?.updated_at ?? 0 });
+  }
+  if (path === "/api/sync/profile" && method === "PUT") {
+    const user = await currentUser(request, env);
+    const body = obj(await readJsonBody(request, 4096), "body");
+    const profile = obj(body.profile, "profile");
+    const displayName = profile.displayName;
+    const dailyGoal = profile.dailyGoal;
+    const updatedAt = body.updatedAt;
+    if (typeof displayName !== "string" || displayName.length > 40 ||
+        !Number.isInteger(dailyGoal) || (dailyGoal as number) < 1 || (dailyGoal as number) > 10 ||
+        !Number.isSafeInteger(updatedAt) || (updatedAt as number) < 0) {
+      throw new HttpError(400, "invalid_profile");
+    }
+    await putUserProfile(env.DB, user.userId, { displayName, dailyGoal: dailyGoal as number }, updatedAt as number);
+    return json({ ok: true, saved: true });
   }
   if (path === "/api/sync/results" && method === "GET") {
     const user = await currentUser(request, env);

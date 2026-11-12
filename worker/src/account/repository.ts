@@ -123,11 +123,14 @@ export async function putUserCourse(
   const payloadUpdatedAt = payload && typeof payload === "object"
     ? (payload as Record<string, unknown>).updatedAt : undefined;
   const safeUpdatedAt = Number.isSafeInteger(payloadUpdatedAt) && (payloadUpdatedAt as number) >= 0 ? payloadUpdatedAt as number : now;
+  await db.prepare("DELETE FROM user_tombstones WHERE user_id = ? AND record_type = 'course' AND record_id = ? AND deleted_at < ?")
+    .bind(userId, courseId, safeUpdatedAt).run();
   await db.prepare(
     "INSERT INTO user_courses (user_id, course_id, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?) " +
     "ON CONFLICT(user_id, course_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at " +
-    "WHERE CAST(json_extract(user_courses.payload, '$.updatedAt') AS INTEGER) <= CAST(json_extract(excluded.payload, '$.updatedAt') AS INTEGER)"
-  ).bind(userId, courseId, serialized, now, safeUpdatedAt).run();
+    "WHERE CAST(json_extract(user_courses.payload, '$.updatedAt') AS INTEGER) <= CAST(json_extract(excluded.payload, '$.updatedAt') AS INTEGER) " +
+    "AND NOT EXISTS (SELECT 1 FROM user_tombstones WHERE user_id = ? AND record_type = 'course' AND record_id = ? AND deleted_at >= ?)"
+  ).bind(userId, courseId, serialized, now, safeUpdatedAt, userId, courseId, safeUpdatedAt).run();
 }
 
 export async function listUserCourses(db: D1Database, userId: string, limit = 100): Promise<StoredRecord[]> {
@@ -151,11 +154,14 @@ export async function putUserChat(
     ? (payload as Record<string, unknown>).updatedAt : undefined;
   const safeUpdatedAt = Number.isSafeInteger(payloadUpdatedAt) && (payloadUpdatedAt as number) >= 0
     ? payloadUpdatedAt as number : now;
+  await db.prepare("DELETE FROM user_tombstones WHERE user_id = ? AND record_type = 'chat' AND record_id = ? AND deleted_at < ?")
+    .bind(userId, threadId, safeUpdatedAt).run();
   await db.prepare(
     "INSERT INTO user_chats (user_id, thread_id, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?) " +
     "ON CONFLICT(user_id, thread_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at " +
-    "WHERE CAST(json_extract(user_chats.payload, '$.updatedAt') AS INTEGER) <= CAST(json_extract(excluded.payload, '$.updatedAt') AS INTEGER)"
-  ).bind(userId, threadId, serialized, now, safeUpdatedAt).run();
+    "WHERE CAST(json_extract(user_chats.payload, '$.updatedAt') AS INTEGER) <= CAST(json_extract(excluded.payload, '$.updatedAt') AS INTEGER) " +
+    "AND NOT EXISTS (SELECT 1 FROM user_tombstones WHERE user_id = ? AND record_type = 'chat' AND record_id = ? AND deleted_at >= ?)"
+  ).bind(userId, threadId, serialized, now, safeUpdatedAt, userId, threadId, safeUpdatedAt).run();
 }
 
 export async function listUserChats(db: D1Database, userId: string, limit = 100): Promise<StoredRecord[]> {
@@ -166,6 +172,39 @@ export async function listUserChats(db: D1Database, userId: string, limit = 100)
     "WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?"
   ).bind(userId, safeLimit).all<{ id: string; payload: string; created_at: number; updated_at: number }>();
   return parseRecords(result.results ?? []);
+}
+
+export interface StoredTombstone { record_type: "course" | "chat"; record_id: string; deleted_at: number; }
+
+export async function putUserTombstone(
+  db: D1Database, userId: string, type: "course" | "chat", recordId: string, deletedAt: number
+): Promise<void> {
+  assertUserId(userId);
+  assertId(recordId, "invalid_record_id");
+  if (!Number.isSafeInteger(deletedAt) || deletedAt < 0) throw new Error("invalid_timestamp");
+  await db.prepare(
+    "INSERT INTO user_tombstones (user_id, record_type, record_id, deleted_at) VALUES (?, ?, ?, ?) " +
+    "ON CONFLICT(user_id, record_type, record_id) DO UPDATE SET deleted_at = MAX(user_tombstones.deleted_at, excluded.deleted_at)"
+  ).bind(userId, type, recordId, deletedAt).run();
+  if (type === "course") {
+    await db.prepare("DELETE FROM user_courses WHERE user_id = ? AND course_id = ? AND CAST(json_extract(payload, '$.updatedAt') AS INTEGER) <= ?")
+      .bind(userId, recordId, deletedAt).run();
+  } else {
+    await db.prepare("DELETE FROM user_chats WHERE user_id = ? AND thread_id = ? AND CAST(json_extract(payload, '$.updatedAt') AS INTEGER) <= ?")
+      .bind(userId, recordId, deletedAt).run();
+  }
+}
+
+export async function listUserTombstones(db: D1Database, userId: string, limit = 1000): Promise<StoredTombstone[]> {
+  assertUserId(userId);
+  const safeLimit = Number.isInteger(limit) ? Math.min(2000, Math.max(1, limit)) : 1000;
+  const result = await db.prepare(
+    "SELECT record_type, record_id, deleted_at FROM user_tombstones WHERE user_id = ? ORDER BY deleted_at DESC LIMIT ?"
+  ).bind(userId, safeLimit).all<StoredTombstone>();
+  return (result.results ?? []).filter(row =>
+    (row.record_type === "course" || row.record_type === "chat") &&
+    typeof row.record_id === "string" && Number.isSafeInteger(row.deleted_at) && row.deleted_at >= 0
+  );
 }
 
 export async function saveEmailVerification(

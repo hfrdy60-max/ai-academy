@@ -51,33 +51,100 @@ async function sendCode(env: Env, email: string, code: string): Promise<void> {
 }
 function clientIp(req: Request): string { return req.headers.get("CF-Connecting-IP") ?? "unknown"; }
 
+const isSyncObject = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === "object" && !Array.isArray(value);
+const isSyncText = (value: unknown, max: number, required = false): value is string =>
+  typeof value === "string" && value.length <= max && (!required || value.trim().length > 0);
+const isSyncTime = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && (value as number) >= 0;
+
+function validLessonContent(value: unknown): boolean {
+  if (!isSyncObject(value)) return false;
+  const textList = (items: unknown, maxItems: number, maxText: number) =>
+    Array.isArray(items) && items.length <= maxItems && items.every(item => isSyncText(item, maxText));
+  if (!isSyncText(value.intro ?? "", 4000) ||
+      !textList(value.objectives, 8, 300) ||
+      !isSyncText(value.explanation, 12000, true) ||
+      !textList(value.examples, 6, 2000) ||
+      !textList(value.notes, 8, 600) ||
+      !isSyncText(value.summary ?? "", 2500) ||
+      !Array.isArray(value.exercises) || value.exercises.length > 10 ||
+      !Array.isArray(value.quiz) || value.quiz.length > 12) return false;
+
+  for (const exercise of value.exercises) {
+    if (!isSyncObject(exercise) || !isSyncText(exercise.question, 1000, true) ||
+        !isSyncText(exercise.hint ?? "", 600) || !isSyncText(exercise.sampleAnswer ?? "", 2000)) return false;
+  }
+  for (const question of value.quiz) {
+    if (!isSyncObject(question) || !isSyncText(question.question, 600, true) ||
+        !Array.isArray(question.options) || question.options.length < 2 || question.options.length > 6 ||
+        !question.options.every(option => isSyncText(option, 300, true)) ||
+        !Number.isSafeInteger(question.correctIndex) || (question.correctIndex as number) < 0 ||
+        (question.correctIndex as number) >= question.options.length ||
+        !isSyncText(question.explanation ?? "", 800)) return false;
+  }
+  return true;
+}
+
 function syncRecord(value: unknown, kind: "course" | "chat"): { id: string; payload: Record<string, unknown> } {
   const item = obj(value, "record");
   const id = str(item.id, "record_id", 128);
   const payload = obj(item.payload, "payload");
-  if (payload.id !== id || !Number.isSafeInteger(payload.updatedAt) || (payload.updatedAt as number) < 0) {
-    throw new HttpError(400, "invalid_payload");
-  }
+  if (payload.id !== id || !isSyncTime(payload.updatedAt)) throw new HttpError(400, "invalid_payload");
+
   if (kind === "course") {
-    if (typeof payload.title !== "string" || payload.title.length > 100 ||
+    if (!isSyncText(payload.title, 100, true) || !isSyncText(payload.subject, 100, true) ||
+        !isSyncText(payload.description ?? "", 1000) || !isSyncText(payload.goal ?? "", 500) ||
         !["beginner", "intermediate", "advanced"].includes(String(payload.level)) ||
+        !isSyncTime(payload.createdAt) ||
+        (payload.isDemo !== undefined && typeof payload.isDemo !== "boolean") ||
         !Array.isArray(payload.chapters) || payload.chapters.length > 50) {
       throw new HttpError(400, "invalid_course");
     }
+
+    const chapterIds = new Set<string>();
+    const lessonIds = new Set<string>();
     for (const chapter of payload.chapters) {
-      if (!chapter || typeof chapter !== "object" || Array.isArray(chapter) ||
-          !Array.isArray((chapter as Record<string, unknown>).lessons) ||
-          ((chapter as Record<string, unknown>).lessons as unknown[]).length > 100) {
+      if (!isSyncObject(chapter) || !isSyncText(chapter.id, 100, true) ||
+          !isSyncText(chapter.title, 150, true) || !Array.isArray(chapter.lessons) ||
+          chapter.lessons.length > 100 || chapterIds.has(chapter.id as string)) {
         throw new HttpError(400, "invalid_course");
       }
+      chapterIds.add(chapter.id as string);
+      for (const lesson of chapter.lessons) {
+        if (!isSyncObject(lesson) || !isSyncText(lesson.id, 100, true) ||
+            !isSyncText(lesson.title, 150, true) || lessonIds.has(lesson.id as string) ||
+            (lesson.completed !== undefined && typeof lesson.completed !== "boolean") ||
+            (lesson.completedAt !== undefined && !isSyncTime(lesson.completedAt))) {
+          throw new HttpError(400, "invalid_course");
+        }
+        lessonIds.add(lesson.id as string);
+        if (lesson.content !== undefined && !validLessonContent(lesson.content)) {
+          throw new HttpError(400, "invalid_course_content");
+        }
+        if (lesson.contentSource !== undefined &&
+            !["ai", "edited", "manual"].includes(String(lesson.contentSource))) {
+          throw new HttpError(400, "invalid_course_content");
+        }
+        if (lesson.contentModel !== undefined && !isSyncText(lesson.contentModel, 100)) {
+          throw new HttpError(400, "invalid_course_content");
+        }
+        if (lesson.contentUpdatedAt !== undefined && !isSyncTime(lesson.contentUpdatedAt)) {
+          throw new HttpError(400, "invalid_course_content");
+        }
+      }
+    }
+    if (payload.lastLessonId !== undefined &&
+        (!isSyncText(payload.lastLessonId, 100, true) || !lessonIds.has(payload.lastLessonId))) {
+      throw new HttpError(400, "invalid_course");
     }
   } else {
     if (!Array.isArray(payload.messages) || payload.messages.length > 200) throw new HttpError(400, "invalid_chat");
     for (const message of payload.messages) {
-      if (!message || typeof message !== "object" || Array.isArray(message)) throw new HttpError(400, "invalid_chat");
-      const m = message as Record<string, unknown>;
-      if ((m.role !== "user" && m.role !== "assistant") || typeof m.content !== "string" ||
-          m.content.length > 8000 || !Number.isFinite(m.at)) throw new HttpError(400, "invalid_chat");
+      if (!isSyncObject(message) ||
+          (message.role !== "user" && message.role !== "assistant") ||
+          !isSyncText(message.content, 8000) || typeof message.at !== "number" ||
+          !Number.isFinite(message.at) || message.at < 0) throw new HttpError(400, "invalid_chat");
     }
   }
   return { id, payload };

@@ -62,6 +62,13 @@ async function uploadRecordBatches<T extends { id: string; payload: unknown }>(
   if (batch.length) await accountApi(path, "PUT", { records: batch });
 }
 
+async function uploadDeletionBatches(rows: SyncTombstone[]): Promise<void> {
+  const deletions = rows.map(row => ({ type: row.type, id: row.recordId, deletedAt: row.deletedAt }));
+  for (let offset = 0; offset < deletions.length; offset += 500) {
+    await accountApi("/api/sync/deletions", "PUT", { deletions: deletions.slice(offset, offset + 500) });
+  }
+}
+
 async function fetchAllPages<T, K extends "records" | "deletions">(
   path: string, key: K, pageSize: number
 ): Promise<T[]> {
@@ -84,25 +91,40 @@ export function syncAccountData(): Promise<SyncSummary> {
 
   syncInProgress = true;
   activeSync = (async () => {
-    const [localCourses, localChats, localTombstones, cloudCourses, cloudChats, cloudDeletions, localExams, localGames, cloudResults, localProfile, cloudProfile] = await Promise.all([
+    const [localCourses, localChats, localTombstones, localExams, localGames, localProfile] = await Promise.all([
       listCourses(), listThreads(), listTombstones(),
+      Promise.resolve(readExamHistory()), Promise.resolve(readGameHistory()),
+      getProfileSyncSnapshot()
+    ]);
+
+    // Upload locally created deletions before reading remote records. The Worker
+    // advances each marker past the current cloud version, preventing client-clock
+    // skew from making a deleted cloud copy appear newer and resurrecting it.
+    const pendingTombstones = localTombstones.filter(row => row.synced !== true);
+    if (pendingTombstones.length) {
+      await uploadDeletionBatches(pendingTombstones);
+      for (const row of pendingTombstones) await saveTombstone({ ...row, synced: true });
+    }
+
+    const [cloudCourses, cloudChats, cloudDeletions, cloudResults, cloudProfile] = await Promise.all([
       fetchAllPages<CloudRecord<Course>, "records">("/api/sync/courses", "records", 25),
       fetchAllPages<CloudRecord<ChatThread>, "records">("/api/sync/chats", "records", 25),
       fetchAllPages<{ record_type: "course" | "chat"; record_id: string; deleted_at: number }, "deletions">("/api/sync/deletions", "deletions", 500),
-      Promise.resolve(readExamHistory()), Promise.resolve(readGameHistory()),
       accountApi<{ records: CloudResultRecord[] }>("/api/sync/results", "GET"),
-      getProfileSyncSnapshot(), accountApi<CloudProfile>("/api/sync/profile", "GET")
+      accountApi<CloudProfile>("/api/sync/profile", "GET")
     ]);
 
+    // Pick up deletes made while the initial local snapshot or remote reads were running.
+    const currentLocalTombstones = await listTombstones();
     const tombstones = new Map<string, SyncTombstone>();
-    for (const row of localTombstones) tombstones.set(row.id, row);
+    for (const row of currentLocalTombstones) tombstones.set(row.id, row);
     for (const row of cloudDeletions) {
       if ((row.record_type !== "course" && row.record_type !== "chat") ||
           typeof row.record_id !== "string" || !Number.isSafeInteger(row.deleted_at) || row.deleted_at < 0) continue;
       const id = tombstoneId(row.record_type, row.record_id);
       const previous = tombstones.get(id);
-      if (!previous || row.deleted_at > previous.deletedAt) {
-        tombstones.set(id, { id, type: row.record_type, recordId: row.record_id, deletedAt: row.deleted_at });
+      if (!previous || row.deleted_at >= previous.deletedAt) {
+        tombstones.set(id, { id, type: row.record_type, recordId: row.record_id, deletedAt: row.deleted_at, synced: true });
       }
     }
 
@@ -131,20 +153,27 @@ export function syncAccountData(): Promise<SyncSummary> {
 
     const liveCourses = await keepOrRemove(courses, "course");
     const liveChats = await keepOrRemove(chats, "chat");
-    const priorIds = new Set(localTombstones.map(row => row.id));
+    const priorIds = new Set(currentLocalTombstones.map(row => row.id));
     for (const row of tombstones.values()) await saveTombstone(row);
     for (const id of priorIds) if (!tombstones.has(id)) await deleteTombstone(id);
 
     for (const course of liveCourses) await saveCourse(course);
     for (const thread of liveChats) await saveThread(thread);
 
-    const deletions = [...tombstones.values()].map(row => ({ type: row.type, id: row.recordId, deletedAt: row.deletedAt }));
-    // Keep each request comfortably below the Worker body limit, even after many offline deletes.
-    for (let offset = 0; offset < deletions.length; offset += 500) {
-      await accountApi("/api/sync/deletions", "PUT", { deletions: deletions.slice(offset, offset + 500) });
-    }
     await uploadRecordBatches("/api/sync/courses", liveCourses.map(payload => ({ id: payload.id, payload })));
     await uploadRecordBatches("/api/sync/chats", liveChats.map(payload => ({ id: payload.id, payload })));
+
+    // A delete can occur while course/chat batches are uploading. Remove any
+    // record that raced back into the local snapshot, then send only unacknowledged markers.
+    const lateTombstones = (await listTombstones()).filter(row => row.synced !== true);
+    if (lateTombstones.length) {
+      for (const row of lateTombstones) {
+        if (row.type === "course") await purgeCourse(row.recordId);
+        else await purgeThread(row.recordId);
+      }
+      await uploadDeletionBatches(lateTombstones);
+      for (const row of lateTombstones) await saveTombstone({ ...row, synced: true });
+    }
 
     const remoteExams = (cloudResults.records ?? [])
       .filter(row => row && row.result_type === "exam" && row.payload &&

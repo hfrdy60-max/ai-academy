@@ -198,6 +198,7 @@ export async function putUserTombstone(
   const currentUpdatedAt = Number.isSafeInteger(currentUpdatedAtValue) && (currentUpdatedAtValue as number) >= 0
     ? currentUpdatedAtValue as number : 0;
   const effectiveDeletedAt = Math.max(deletedAt, serverNow, currentUpdatedAt + 1);
+  if (!Number.isSafeInteger(effectiveDeletedAt)) throw new Error("invalid_timestamp");
 
   await db.prepare(
     "INSERT INTO user_tombstones (user_id, record_type, record_id, deleted_at) VALUES (?, ?, ?, ?) " +

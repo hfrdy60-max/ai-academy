@@ -3,7 +3,7 @@ import { HttpError } from "../security/errors";
 import { allowRequest } from "../security/rateLimit";
 import { readJsonBody, obj, str } from "../security/validate";
 import { normalizeEmail } from "./crypto";
-import { findUserByEmail, insertUser, saveEmailVerification, consumeEmailVerification, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones } from "./repository";
+import { findUserByEmail, insertUser, saveEmailVerification, consumeEmailVerification, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones, putUserResult, listUserResults, trimUserResults } from "./repository";
 import { issueSession, resolveSession, revokeSessionToken } from "./session";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -163,6 +163,50 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
     });
     if (new Set(checked.map(x => x.type + ":" + x.id)).size !== checked.length) throw new HttpError(400, "duplicate_deletions");
     for (const item of checked) await putUserTombstone(env.DB, user.userId, item.type, item.id, item.deletedAt);
+    return json({ ok: true, saved: checked.length });
+  }
+  if (path === "/api/sync/results" && method === "GET") {
+    const user = await currentUser(request, env);
+    return json({ ok: true, records: await listUserResults(env.DB, user.userId, 40) });
+  }
+  if (path === "/api/sync/results" && method === "PUT") {
+    const user = await currentUser(request, env);
+    const body = obj(await readJsonBody(request, MAX_BODY), "body");
+    if (!Array.isArray(body.records) || body.records.length > 40) throw new HttpError(400, "invalid_results");
+    const checked = body.records.map(value => {
+      const item = obj(value, "result");
+      const type = item.type;
+      const id = str(item.id, "record_id", 100);
+      const payload = obj(item.payload, "payload");
+      if (payload.id !== id || !Number.isSafeInteger(payload.date) || (payload.date as number) < 0) {
+        throw new HttpError(400, "invalid_result");
+      }
+      if (type === "exam") {
+        const correct = payload.correct, total = payload.total, percent = payload.percent;
+        if (!Number.isSafeInteger(correct) || !Number.isSafeInteger(total) || !Number.isSafeInteger(percent) ||
+            (correct as number) < 0 || (total as number) <= 0 || (correct as number) > (total as number) ||
+            percent !== Math.round((correct as number) / (total as number) * 100)) {
+          throw new HttpError(400, "invalid_exam_result");
+        }
+      } else if (type === "game") {
+        const points = payload.points, correct = payload.correct, answered = payload.answered, bestStreak = payload.bestStreak;
+        if (!Number.isSafeInteger(points) || !Number.isSafeInteger(correct) || !Number.isSafeInteger(answered) ||
+            !Number.isSafeInteger(bestStreak) || (points as number) < 0 || (correct as number) < 0 ||
+            (answered as number) <= 0 || (correct as number) > (answered as number) ||
+            (bestStreak as number) < 0 || (bestStreak as number) > (answered as number) ||
+            points !== (correct as number) * 10) {
+          throw new HttpError(400, "invalid_game_result");
+        }
+      } else {
+        throw new HttpError(400, "invalid_result_type");
+      }
+      return { type: type as "exam" | "game", id, payload };
+    });
+    if (new Set(checked.map(x => x.type + ":" + x.id)).size !== checked.length) throw new HttpError(400, "duplicate_results");
+    const now = Date.now();
+    for (const item of checked) await putUserResult(env.DB, user.userId, item.type, item.id, item.payload, now);
+    await trimUserResults(env.DB, user.userId, "exam", 20);
+    await trimUserResults(env.DB, user.userId, "game", 20);
     return json({ ok: true, saved: checked.length });
   }
   if (path === "/api/sync/courses" && method === "GET") {

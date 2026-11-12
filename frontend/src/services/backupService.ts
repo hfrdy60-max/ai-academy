@@ -129,6 +129,7 @@ export async function importData(text: string): Promise<{ courses: number; chats
     } catch { /* best effort */ }
     throw new Error("دوره‌ها و گفتگوها وارد شدند، اما ذخیره سوابق آزمون و بازی ممکن نشد. فضای ذخیره‌سازی را بررسی کنید.");
   }
+  if (profile) window.dispatchEvent(new Event("ai-academy-profile-change"));
   window.dispatchEvent(new Event("ai-academy-data-change"));
   return { courses: courses.length, chats: chats.length, exams: mergedExams.length, games: mergedGames.length };
 }

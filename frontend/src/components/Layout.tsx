@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { getCachedAccount, logoutAccount } from "../services/accountService";
+import { getCachedAccount, getSessionToken, logoutAccount } from "../services/accountService";
 import { isAccountSyncInProgress, syncAccountData } from "../services/syncService";
 import { NAV } from "../nav";
 import { useTheme } from "../hooks/useTheme";
@@ -34,12 +34,32 @@ export default function Layout() {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const changed = () => {
-      if (isAccountSyncInProgress()) return;
+      if (!getSessionToken() || !navigator.onLine || isAccountSyncInProgress()) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => { void syncAccountData().catch(() => { /* manual sync remains available */ }); }, 1800);
     };
     window.addEventListener("ai-academy-data-change", changed);
     return () => { window.removeEventListener("ai-academy-data-change", changed); if (timer) clearTimeout(timer); };
+  }, []);
+
+  // Restore cloud sync after a page refresh or when the device reconnects.
+  useEffect(() => {
+    let active = true;
+    const runSync = async () => {
+      if (!getSessionToken() || !navigator.onLine || isAccountSyncInProgress()) return;
+      setSyncing(true);
+      try {
+        const result = await syncAccountData();
+        if (active) setSyncMessage(`${result.courses} دوره و ${result.chats} گفتگو همگام شد.`);
+      } catch (error) {
+        if (active) setSyncMessage(error instanceof Error ? error.message : "همگام‌سازی انجام نشد؛ اطلاعات محلی محفوظ است.");
+      } finally {
+        if (active) setSyncing(false);
+      }
+    };
+    void runSync();
+    window.addEventListener("online", runSync);
+    return () => { active = false; window.removeEventListener("online", runSync); };
   }, []);
 
   const closeMore = useCallback(() => { setMoreOpen(false); moreBtn.current?.focus(); }, []);

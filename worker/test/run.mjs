@@ -303,16 +303,32 @@ t("D1 tombstone page uses deterministic record ordering and offset",
   dbCalls.at(-1).values[1] === 500 && dbCalls.at(-1).values[2] === 1000);
 
 dbCalls.length = 0;
-await putUserTombstone(fakeDb, "user_1234567890123456", "course", "course-1", 500);
-t("D1 deletion marker is scoped to owner, type and record id", /user_tombstones/.test(dbCalls[0].sql) && dbCalls[0].values.join("|") === "user_1234567890123456|course|course-1|500");
-t("D1 course deletion removes only an older matching course", /DELETE FROM user_courses/.test(dbCalls[1].sql) && /updatedAt/.test(dbCalls[1].sql) && dbCalls[1].values[0] === "user_1234567890123456");
+await putUserTombstone(fakeDb, "user_1234567890123456", "course", "course-1", 500, 450);
+t("D1 deletion marker checks the current cloud version before writing", /FROM user_courses/.test(dbCalls[0].sql) && dbCalls[0].values.join("|") === "user_1234567890123456|course-1");
+t("D1 deletion marker is scoped to owner, type and record id", /user_tombstones/.test(dbCalls[1].sql) && dbCalls[1].values.join("|") === "user_1234567890123456|course|course-1|500");
+t("D1 course deletion removes the matching cloud record unconditionally", /DELETE FROM user_courses/.test(dbCalls[2].sql) && !/updatedAt/.test(dbCalls[2].sql) && dbCalls[2].values[0] === "user_1234567890123456");
 dbCalls.length = 0;
-await putUserTombstone(fakeDb, "user_1234567890123456", "chat", "thread-1", 600);
-t("D1 chat deletion removes only an older matching thread", /DELETE FROM user_chats/.test(dbCalls[1].sql) && dbCalls[1].values[1] === "thread-1");
+await putUserTombstone(fakeDb, "user_1234567890123456", "chat", "thread-1", 600, 550);
+t("D1 chat deletion removes the matching cloud thread unconditionally", /DELETE FROM user_chats/.test(dbCalls[2].sql) && dbCalls[2].values[1] === "thread-1");
 dbCalls.length = 0;
 let invalidTombstoneTime = false;
 try { await putUserTombstone(fakeDb, "user_1234567890123456", "course", "course-1", -1); } catch (error) { invalidTombstoneTime = error.message === "invalid_timestamp"; }
 t("D1 deletion marker rejects negative timestamps before database access", invalidTombstoneTime && dbCalls.length === 0);
+const skewDbCalls = [];
+const skewDb = {
+  prepare(sql) {
+    const call = { sql, values: [] }; skewDbCalls.push(call);
+    return {
+      bind(...values) { call.values = values; return this; },
+      async first() { return { updated_at: 9000 }; },
+      async run() { return { success: true, meta: { changes: 1 } }; }
+    };
+  }
+};
+await putUserTombstone(skewDb, "user_1234567890123456", "course", "future-course", 100, 500);
+t("D1 deletion marker advances past a cloud record created by a fast client clock",
+  skewDbCalls[1].values[3] === 9001 &&
+  /DELETE FROM user_courses/.test(skewDbCalls[2].sql));
 dbCalls.length = 0;
 const tombstones = await listUserTombstones(fakeDb, "user_1234567890123456", 9000);
 t("D1 deletion listing is owner-scoped and caps results", /WHERE user_id = \?/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[1] === 2000 && Array.isArray(tombstones));

@@ -516,6 +516,9 @@ const accountRouteDb = {
         if (sql.includes("FROM sessions s")) {
           return { token_hash: call.values[0], user_id: "user_1234567890123456", created_at: 1, expires_at: Date.now() + 60000, email: "student@example.com" };
         }
+        if (sql.includes("FROM user_profiles")) {
+          return { payload: JSON.stringify({ displayName: "Learner", dailyGoal: 2 }), updated_at: 700 };
+        }
         return null;
       },
       async all() { return { results: [] }; },
@@ -555,6 +558,30 @@ resultResponseBody = await resultResponse.json();
 t("account results PUT rejects inconsistent exam scores without writing", resultResponse.status === 400 &&
   resultResponseBody.error === "invalid_exam_result" &&
   accountRouteCalls.filter(call => call.sql.includes("INSERT INTO user_results")).length === writesBeforeInvalid);
+
+const profileRequest = (method, body) => new Request("https://api.test/api/sync/profile", {
+  method,
+  headers: { Origin: ENV.ALLOWED_ORIGIN, Authorization: `Bearer ${accountRouteToken}`, "Content-Type": "application/json" },
+  body: body === undefined ? undefined : JSON.stringify(body)
+});
+accountRouteCalls.length = 0;
+let profileResponse = await worker.fetch(profileRequest("GET"), accountRouteEnv);
+let profileResponseBody = await profileResponse.json();
+t("account profile GET returns the authenticated user's profile",
+  profileResponse.status === 200 && profileResponseBody.profile?.displayName === "Learner" &&
+  profileResponseBody.profile?.dailyGoal === 2 && profileResponseBody.updated_at === 700);
+accountRouteCalls.length = 0;
+profileResponse = await worker.fetch(profileRequest("PUT", { profile: { displayName: "Tester", dailyGoal: 4 }, updatedAt: Date.now() }), accountRouteEnv);
+profileResponseBody = await profileResponse.json();
+const profileWrite = accountRouteCalls.find(call => call.sql.includes("INSERT INTO user_profiles"));
+t("account profile PUT stores only validated user-visible fields",
+  profileResponse.status === 200 && profileResponseBody.saved === true && profileWrite?.values[0] === "user_1234567890123456");
+accountRouteCalls.length = 0;
+profileResponse = await worker.fetch(profileRequest("PUT", { profile: { displayName: "Tester", dailyGoal: 12 }, updatedAt: Date.now() }), accountRouteEnv);
+profileResponseBody = await profileResponse.json();
+t("account profile PUT rejects invalid daily goals without writing",
+  profileResponse.status === 400 && profileResponseBody.error === "invalid_profile" &&
+  !accountRouteCalls.some(call => call.sql.includes("INSERT INTO user_profiles")));
 
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }

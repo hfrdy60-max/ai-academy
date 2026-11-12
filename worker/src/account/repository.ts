@@ -179,21 +179,35 @@ export async function listUserChats(db: D1Database, userId: string, limit = 100,
 export interface StoredTombstone { record_type: "course" | "chat"; record_id: string; deleted_at: number; }
 
 export async function putUserTombstone(
-  db: D1Database, userId: string, type: "course" | "chat", recordId: string, deletedAt: number
+  db: D1Database, userId: string, type: "course" | "chat", recordId: string,
+  deletedAt: number, serverNow = Date.now()
 ): Promise<void> {
   assertUserId(userId);
   assertId(recordId, "invalid_record_id");
-  if (!Number.isSafeInteger(deletedAt) || deletedAt < 0) throw new Error("invalid_timestamp");
+  if (!Number.isSafeInteger(deletedAt) || deletedAt < 0 ||
+      !Number.isSafeInteger(serverNow) || serverNow < 0) throw new Error("invalid_timestamp");
+
+  // A device clock can be behind another device. Advance the deletion marker
+  // past the currently stored cloud version so an explicit delete is not lost.
+  const currentVersion = type === "course"
+    ? await db.prepare("SELECT CAST(json_extract(payload, '$.updatedAt') AS INTEGER) AS updated_at FROM user_courses WHERE user_id = ? AND course_id = ? LIMIT 1")
+      .bind(userId, recordId).first<{ updated_at: number }>()
+    : await db.prepare("SELECT CAST(json_extract(payload, '$.updatedAt') AS INTEGER) AS updated_at FROM user_chats WHERE user_id = ? AND thread_id = ? LIMIT 1")
+      .bind(userId, recordId).first<{ updated_at: number }>();
+  const currentUpdatedAt = Number.isSafeInteger(currentVersion?.updated_at) && currentVersion.updated_at >= 0
+    ? currentVersion.updated_at : 0;
+  const effectiveDeletedAt = Math.max(deletedAt, serverNow, currentUpdatedAt + 1);
+
   await db.prepare(
     "INSERT INTO user_tombstones (user_id, record_type, record_id, deleted_at) VALUES (?, ?, ?, ?) " +
     "ON CONFLICT(user_id, record_type, record_id) DO UPDATE SET deleted_at = MAX(user_tombstones.deleted_at, excluded.deleted_at)"
-  ).bind(userId, type, recordId, deletedAt).run();
+  ).bind(userId, type, recordId, effectiveDeletedAt).run();
   if (type === "course") {
-    await db.prepare("DELETE FROM user_courses WHERE user_id = ? AND course_id = ? AND CAST(json_extract(payload, '$.updatedAt') AS INTEGER) <= ?")
-      .bind(userId, recordId, deletedAt).run();
+    await db.prepare("DELETE FROM user_courses WHERE user_id = ? AND course_id = ?")
+      .bind(userId, recordId).run();
   } else {
-    await db.prepare("DELETE FROM user_chats WHERE user_id = ? AND thread_id = ? AND CAST(json_extract(payload, '$.updatedAt') AS INTEGER) <= ?")
-      .bind(userId, recordId, deletedAt).run();
+    await db.prepare("DELETE FROM user_chats WHERE user_id = ? AND thread_id = ?")
+      .bind(userId, recordId).run();
   }
 }
 

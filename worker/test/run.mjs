@@ -599,6 +599,27 @@ t("account profile PUT rejects invalid daily goals without writing",
   profileResponse.status === 400 && profileResponseBody.error === "invalid_profile" &&
   !accountRouteCalls.some(call => call.sql.includes("INSERT INTO user_profiles")));
 
+const coursePageRequest = new Request("https://api.test/api/sync/courses?limit=25&offset=50", {
+  method: "GET",
+  headers: { Origin: ENV.ALLOWED_ORIGIN, Authorization: `Bearer ${accountRouteToken}` }
+});
+accountRouteCalls.length = 0;
+const coursePageResponse = await worker.fetch(coursePageRequest, accountRouteEnv);
+const coursePageDbCall = accountRouteCalls.find(call => call.sql.includes("FROM user_courses"));
+t("course sync API accepts bounded pagination and passes the page window to D1",
+  coursePageResponse.status === 200 && coursePageDbCall?.values[0] === "user_1234567890123456" &&
+  coursePageDbCall?.values[1] === 25 && coursePageDbCall?.values[2] === 50);
+const badPageRequest = new Request("https://api.test/api/sync/chats?limit=0&offset=-1", {
+  method: "GET",
+  headers: { Origin: ENV.ALLOWED_ORIGIN, Authorization: `Bearer ${accountRouteToken}` }
+});
+accountRouteCalls.length = 0;
+const badPageResponse = await worker.fetch(badPageRequest, accountRouteEnv);
+const badPageBody = await badPageResponse.json();
+t("sync API rejects invalid pagination parameters before querying records",
+  badPageResponse.status === 400 && badPageBody.error === "invalid_pagination" &&
+  !accountRouteCalls.some(call => call.sql.includes("FROM user_chats")));
+
 upstream.close();
 let fail = 0; for (const [n, c, x] of results) { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + n + (!c && x ? "   <- " + x : "")); }
 console.log(`\n${results.length - fail}/${results.length} passed`); process.exit(fail ? 1 : 0);

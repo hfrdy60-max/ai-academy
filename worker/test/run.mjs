@@ -1,5 +1,5 @@
 import http from "node:http";
-import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, saveEmailVerification, consumeEmailVerification, issueSession, resolveSession, revokeSessionToken, DEFAULT_SESSION_TTL_MS, MAX_SESSION_TTL_MS } from "./.build/worker.mjs";
+import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones, saveEmailVerification, consumeEmailVerification, issueSession, resolveSession, revokeSessionToken, DEFAULT_SESSION_TTL_MS, MAX_SESSION_TTL_MS } from "./.build/worker.mjs";
 
 // ---- fake "OpenRouter" upstream (tests OUR adapter; it is NOT the real service) ----
 let mode = "ok", calls = 0; const seen = [];
@@ -285,6 +285,21 @@ t("D1 chat upsert is scoped to user and composite thread key", /ON CONFLICT\(use
 dbCalls.length = 0;
 const chats = await listUserChats(fakeDb, "user_2234567890123456", 0);
 t("D1 chat list clamps page size and parses JSON", dbCalls.at(-1).values[1] === 1 && Array.isArray(chats) && chats[0].id === "course-1");
+
+dbCalls.length = 0;
+await putUserTombstone(fakeDb, "user_1234567890123456", "course", "course-1", 500);
+t("D1 deletion marker is scoped to owner, type and record id", /user_tombstones/.test(dbCalls[0].sql) && dbCalls[0].values.join("|") === "user_1234567890123456|course|course-1|500");
+t("D1 course deletion removes only an older matching course", /DELETE FROM user_courses/.test(dbCalls[1].sql) && /updatedAt/.test(dbCalls[1].sql) && dbCalls[1].values[0] === "user_1234567890123456");
+dbCalls.length = 0;
+await putUserTombstone(fakeDb, "user_1234567890123456", "chat", "thread-1", 600);
+t("D1 chat deletion removes only an older matching thread", /DELETE FROM user_chats/.test(dbCalls[1].sql) && dbCalls[1].values[1] === "thread-1");
+dbCalls.length = 0;
+let invalidTombstoneTime = false;
+try { await putUserTombstone(fakeDb, "user_1234567890123456", "course", "course-1", -1); } catch (error) { invalidTombstoneTime = error.message === "invalid_timestamp"; }
+t("D1 deletion marker rejects negative timestamps before database access", invalidTombstoneTime && dbCalls.length === 0);
+dbCalls.length = 0;
+const tombstones = await listUserTombstones(fakeDb, "user_1234567890123456", 9000);
+t("D1 deletion listing is owner-scoped and caps results", /WHERE user_id = \?/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[1] === 2000 && Array.isArray(tombstones));
 let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_1234567890123456", "big", { data: "x".repeat(270000) }, 1); } catch { hugePayloadRejected = true; }
 t("D1 repository rejects oversized JSON records before writing", hugePayloadRejected);
 

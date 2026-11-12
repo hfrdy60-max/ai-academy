@@ -243,7 +243,8 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
       return { type: rawType as "course" | "chat", id, deletedAt: deletedAt as number };
     });
     if (new Set(checked.map(x => x.type + ":" + x.id)).size !== checked.length) throw new HttpError(400, "duplicate_deletions");
-    for (const item of checked) await putUserTombstone(env.DB, user.userId, item.type, item.id, item.deletedAt);
+    const serverNow = Date.now();
+    for (const item of checked) await putUserTombstone(env.DB, user.userId, item.type, item.id, item.deletedAt, serverNow);
     return json({ ok: true, saved: checked.length });
   }
   if (path === "/api/sync/profile" && method === "GET") {

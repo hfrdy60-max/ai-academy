@@ -5,10 +5,16 @@ import type { Course } from "../types/course";
 import type { ChatThread } from "../types/chat";
 import { validateCourse, validateThread } from "./validate";
 import { deleteTombstone, listTombstones, saveTombstone, tombstoneId, type SyncTombstone } from "../database/tombstones";
+import {
+  isExamResult, isGameResult, mergeHistories, readExamHistory, readGameHistory, writeSyncedHistories,
+  type ExamResult, type GameResult
+} from "./resultService";
 
 interface CloudRecord<T> { id: string; payload: T; updated_at: number }
+interface CloudResultRecord { id: string; result_type: "exam" | "game"; payload: unknown; updated_at: number }
+type SyncSummary = { courses: number; chats: number; exams: number; games: number };
 let syncInProgress = false;
-let activeSync: Promise<{ courses: number; chats: number }> | null = null;
+let activeSync: Promise<SyncSummary> | null = null;
 export function isAccountSyncInProgress(): boolean { return syncInProgress; }
 
 function mergeByUpdatedAt<T extends { id: string; updatedAt: number }>(
@@ -31,16 +37,18 @@ function mergeByUpdatedAt<T extends { id: string; updatedAt: number }>(
 }
 
 /** Merge local/cloud records while honoring deletion markers from every signed-in device. */
-export function syncAccountData(): Promise<{ courses: number; chats: number }> {
+export function syncAccountData(): Promise<SyncSummary> {
   if (activeSync) return activeSync;
 
   syncInProgress = true;
   activeSync = (async () => {
-    const [localCourses, localChats, localTombstones, cloudCourses, cloudChats, cloudDeletions] = await Promise.all([
+    const [localCourses, localChats, localTombstones, cloudCourses, cloudChats, cloudDeletions, localExams, localGames, cloudResults] = await Promise.all([
       listCourses(), listThreads(), listTombstones(),
       accountApi<{ records: CloudRecord<Course>[] }>("/api/sync/courses", "GET"),
       accountApi<{ records: CloudRecord<ChatThread>[] }>("/api/sync/chats", "GET"),
-      accountApi<{ deletions: { record_type: "course" | "chat"; record_id: string; deleted_at: number }[] }>("/api/sync/deletions", "GET")
+      accountApi<{ deletions: { record_type: "course" | "chat"; record_id: string; deleted_at: number }[] }>("/api/sync/deletions", "GET"),
+      Promise.resolve(readExamHistory()), Promise.resolve(readGameHistory()),
+      accountApi<{ records: CloudResultRecord[] }>("/api/sync/results", "GET")
     ]);
 
     const tombstones = new Map<string, SyncTombstone>();
@@ -94,7 +102,24 @@ export function syncAccountData(): Promise<{ courses: number; chats: number }> {
     }
     await accountApi("/api/sync/courses", "PUT", { records: liveCourses.map(payload => ({ id: payload.id, payload })) });
     await accountApi("/api/sync/chats", "PUT", { records: liveChats.map(payload => ({ id: payload.id, payload })) });
-    return { courses: liveCourses.length, chats: liveChats.length };
+
+    const remoteExams = (cloudResults.records ?? [])
+      .filter(row => row && row.result_type === "exam" && row.payload &&
+        typeof row.payload === "object" && (row.payload as Record<string, unknown>).id === row.id)
+      .map(row => row.payload);
+    const remoteGames = (cloudResults.records ?? [])
+      .filter(row => row && row.result_type === "game" && row.payload &&
+        typeof row.payload === "object" && (row.payload as Record<string, unknown>).id === row.id)
+      .map(row => row.payload);
+    const exams: ExamResult[] = mergeHistories(localExams, remoteExams, isExamResult);
+    const games: GameResult[] = mergeHistories(localGames, remoteGames, isGameResult);
+    writeSyncedHistories(exams, games);
+    const resultRecords = [
+      ...exams.map(payload => ({ id: payload.id, type: "exam", payload })),
+      ...games.map(payload => ({ id: payload.id, type: "game", payload }))
+    ];
+    await accountApi("/api/sync/results", "PUT", { records: resultRecords });
+    return { courses: liveCourses.length, chats: liveChats.length, exams: exams.length, games: games.length };
   })().finally(() => {
     syncInProgress = false;
     activeSync = null;

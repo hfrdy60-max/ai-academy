@@ -39,6 +39,29 @@ function mergeByUpdatedAt<T extends { id: string; updatedAt: number }>(
   return [...merged.values()];
 }
 
+/** Upload bounded batches so a large advanced course does not exceed Worker request limits. */
+async function uploadRecordBatches<T extends { id: string; payload: unknown }>(
+  path: string, records: T[]
+): Promise<void> {
+  const maxBatchBytes = 1_700_000;
+  let batch: T[] = [];
+  for (const record of records) {
+    const candidate = [...batch, record];
+    const size = new TextEncoder().encode(JSON.stringify({ records: candidate })).byteLength;
+    if (batch.length > 0 && (size > maxBatchBytes || candidate.length > 200)) {
+      await accountApi(path, "PUT", { records: batch });
+      batch = [record];
+    } else {
+      batch = candidate;
+    }
+    const singleSize = new TextEncoder().encode(JSON.stringify({ records: [record] })).byteLength;
+    if (singleSize > maxBatchBytes) {
+      throw new Error("یکی از داده‌های همگام‌سازی از حد مجاز بزرگ‌تر است؛ نسخه پشتیبان تهیه و محتوای آن را بررسی کنید.");
+    }
+  }
+  if (batch.length) await accountApi(path, "PUT", { records: batch });
+}
+
 /** Merge local/cloud records while honoring deletion markers from every signed-in device. */
 export function syncAccountData(): Promise<SyncSummary> {
   if (activeSync) return activeSync;
@@ -104,8 +127,8 @@ export function syncAccountData(): Promise<SyncSummary> {
     for (let offset = 0; offset < deletions.length; offset += 500) {
       await accountApi("/api/sync/deletions", "PUT", { deletions: deletions.slice(offset, offset + 500) });
     }
-    await accountApi("/api/sync/courses", "PUT", { records: liveCourses.map(payload => ({ id: payload.id, payload })) });
-    await accountApi("/api/sync/chats", "PUT", { records: liveChats.map(payload => ({ id: payload.id, payload })) });
+    await uploadRecordBatches("/api/sync/courses", liveCourses.map(payload => ({ id: payload.id, payload })));
+    await uploadRecordBatches("/api/sync/chats", liveChats.map(payload => ({ id: payload.id, payload })));
 
     const remoteExams = (cloudResults.records ?? [])
       .filter(row => row && row.result_type === "exam" && row.payload &&

@@ -34,6 +34,13 @@ export default function Settings() {
       finally { setReady(true); }
     })();
   }, []);
+  useEffect(() => {
+    const refreshProfile = () => {
+      void getProfile().then(p => { setName(p.displayName); setGoal(String(p.dailyGoal)); }).catch(() => {});
+    };
+    window.addEventListener("ai-academy-profile-change", refreshProfile);
+    return () => window.removeEventListener("ai-academy-profile-change", refreshProfile);
+  }, []);
 
   async function onSaveProfile(e: { preventDefault: () => void }) {
     e.preventDefault();

@@ -1,5 +1,5 @@
 import http from "node:http";
-import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones, saveEmailVerification, consumeEmailVerification, issueSession, resolveSession, revokeSessionToken, DEFAULT_SESSION_TTL_MS, MAX_SESSION_TTL_MS } from "./.build/worker.mjs";
+import worker, { resetRateLimit, normalizeEmail, createOpaqueToken, hashOpaqueToken, digestMatches, findUserByEmail, insertUser, createSession, findActiveSession, revokeSession, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones, putUserResult, listUserResults, trimUserResults, saveEmailVerification, consumeEmailVerification, issueSession, resolveSession, revokeSessionToken, DEFAULT_SESSION_TTL_MS, MAX_SESSION_TTL_MS } from "./.build/worker.mjs";
 
 // ---- fake "OpenRouter" upstream (tests OUR adapter; it is NOT the real service) ----
 let mode = "ok", calls = 0; const seen = [];
@@ -300,6 +300,43 @@ t("D1 deletion marker rejects negative timestamps before database access", inval
 dbCalls.length = 0;
 const tombstones = await listUserTombstones(fakeDb, "user_1234567890123456", 9000);
 t("D1 deletion listing is owner-scoped and caps results", /WHERE user_id = \?/.test(dbCalls.at(-1).sql) && dbCalls.at(-1).values[1] === 2000 && Array.isArray(tombstones));
+
+const resultDbCalls = [];
+const resultDb = {
+  prepare(sql) {
+    const call = { sql, values: [] }; resultDbCalls.push(call);
+    return {
+      bind(...values) { call.values = values; return this; },
+      async run() { return { success: true, meta: { changes: 1 } }; },
+      async all() {
+        return { results: [
+          { id: "exam-1", result_type: "exam", payload: JSON.stringify({ id: "exam-1", date: 500, correct: 4, total: 5, percent: 80 }), created_at: 100, updated_at: 500 },
+          { id: "game-1", result_type: "game", payload: JSON.stringify({ id: "game-1", date: 600, points: 20, correct: 2, answered: 3, bestStreak: 2 }), created_at: 100, updated_at: 600 }
+        ] };
+      }
+    };
+  }
+};
+resultDbCalls.length = 0;
+await putUserResult(resultDb, "user_1234567890123456", "exam", "exam-1", { id: "exam-1", date: 500, correct: 4, total: 5, percent: 80 }, 1000);
+t("D1 exam result upsert is user-scoped and uses result date for conflict ordering",
+  /ON CONFLICT\(user_id, result_type, result_id\)/.test(resultDbCalls[0].sql) &&
+  resultDbCalls[0].values.join("|") === "user_1234567890123456|exam|exam-1|${JSON.stringify({ id: "exam-1", date: 500, correct: 4, total: 5, percent: 80 })}|1000|500");
+resultDbCalls.length = 0;
+let badResultDateRejected = false;
+try { await putUserResult(resultDb, "user_1234567890123456", "game", "game-1", { id: "game-1", date: Number.NaN }, 1000); }
+catch (error) { badResultDateRejected = error.message === "invalid_result_timestamp"; }
+t("D1 result repository rejects unsafe result timestamps before writing", badResultDateRejected && resultDbCalls.length === 0);
+resultDbCalls.length = 0;
+const cloudResults = await listUserResults(resultDb, "user_1234567890123456", 500);
+t("D1 result list parses payload JSON and caps per-user page size",
+  /WHERE user_id = \?/.test(resultDbCalls[0].sql) && resultDbCalls[0].values[1] === 100 &&
+  cloudResults.length === 2 && cloudResults[0].payload.date === 500);
+resultDbCalls.length = 0;
+await trimUserResults(resultDb, "user_1234567890123456", "game", 20);
+t("D1 result trimming keeps only the newest bounded records of one type",
+  /DELETE FROM user_results/.test(resultDbCalls[0].sql) && /ORDER BY updated_at DESC LIMIT \?/.test(resultDbCalls[0].sql) &&
+  resultDbCalls[0].values.join("|") === "user_1234567890123456|game|user_1234567890123456|game|20");
 let hugePayloadRejected = false; try { await putUserCourse(fakeDb, "user_1234567890123456", "big", { data: "x".repeat(270000) }, 1); } catch { hugePayloadRejected = true; }
 t("D1 repository rejects oversized JSON records before writing", hugePayloadRejected);
 

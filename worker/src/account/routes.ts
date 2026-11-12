@@ -3,7 +3,7 @@ import { HttpError } from "../security/errors";
 import { allowRequest } from "../security/rateLimit";
 import { readJsonBody, obj, str } from "../security/validate";
 import { normalizeEmail } from "./crypto";
-import { findUserByEmail, insertUser, saveEmailVerification, consumeEmailVerification, putUserCourse, listUserCourses, putUserChat, listUserChats } from "./repository";
+import { findUserByEmail, insertUser, saveEmailVerification, consumeEmailVerification, putUserCourse, listUserCourses, putUserChat, listUserChats, putUserTombstone, listUserTombstones } from "./repository";
 import { issueSession, resolveSession, revokeSessionToken } from "./session";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -143,6 +143,28 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
     return json({ ok: true });
   }
 
+  if (path === "/api/sync/deletions" && method === "GET") {
+    const user = await currentUser(request, env);
+    return json({ ok: true, deletions: await listUserTombstones(env.DB, user.userId, 2000) });
+  }
+  if (path === "/api/sync/deletions" && method === "PUT") {
+    const user = await currentUser(request, env);
+    const body = obj(await readJsonBody(request, MAX_BODY), "body");
+    if (!Array.isArray(body.deletions) || body.deletions.length > 1000) throw new HttpError(400, "invalid_deletions");
+    const checked = body.deletions.map(value => {
+      const item = obj(value, "deletion");
+      const type = item.type;
+      const id = str(item.id, "record_id", 128);
+      const deletedAt = item.deletedAt;
+      if ((type !== "course" && type !== "chat") || !Number.isSafeInteger(deletedAt) || (deletedAt as number) < 0) {
+        throw new HttpError(400, "invalid_deletion");
+      }
+      return { type, id, deletedAt: deletedAt as number };
+    });
+    if (new Set(checked.map(x => x.type + ":" + x.id)).size !== checked.length) throw new HttpError(400, "duplicate_deletions");
+    for (const item of checked) await putUserTombstone(env.DB, user.userId, item.type, item.id, item.deletedAt);
+    return json({ ok: true, saved: checked.length });
+  }
   if (path === "/api/sync/courses" && method === "GET") {
     const user = await currentUser(request, env);
     return json({ ok: true, records: await listUserCourses(env.DB, user.userId, 200) });

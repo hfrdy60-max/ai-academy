@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { getCachedAccount, getSessionToken, logoutAccount } from "../services/accountService";
+import { clearAccountSession, getCachedAccount, getCurrentAccount, getSessionToken, logoutAccount } from "../services/accountService";
 import { isAccountSyncInProgress, syncAccountData } from "../services/syncService";
 import { NAV } from "../nav";
 import { useTheme } from "../hooks/useTheme";
@@ -22,7 +22,7 @@ const tabLink = ({ isActive }: { isActive: boolean }) =>
 export default function Layout() {
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
-  const account = getCachedAccount();
+  const [account, setAccount] = useState(getCachedAccount);
   const { pathname } = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -42,24 +42,35 @@ export default function Layout() {
     return () => { window.removeEventListener("ai-academy-data-change", changed); if (timer) clearTimeout(timer); };
   }, []);
 
-  // Restore cloud sync after a page refresh or when the device reconnects.
+  // Validate the saved session before syncing; retain local data if the network is unavailable.
   useEffect(() => {
     let active = true;
-    const runSync = async () => {
+    const restoreAndSync = async () => {
       if (!getSessionToken() || !navigator.onLine || isAccountSyncInProgress()) return;
-      setSyncing(true);
       try {
+        const current = await getCurrentAccount();
+        if (!active) return;
+        setAccount(current);
+        setSyncing(true);
         const result = await syncAccountData();
-        if (active) setSyncMessage(`${result.courses} دوره و ${result.chats} گفتگو همگام شد.`);
+        if (active) setSyncMessage(String(result.courses) + " دوره و " + String(result.chats) + " گفتگو همگام شد.");
       } catch (error) {
-        if (active) setSyncMessage(error instanceof Error ? error.message : "همگام‌سازی انجام نشد؛ اطلاعات محلی محفوظ است.");
+        if (!active) return;
+        const message = error instanceof Error ? error.message : "همگام‌سازی انجام نشد؛ اطلاعات محلی محفوظ است.";
+        if (message.includes("نشست شما منقضی") || message.includes("برای ادامه وارد حساب شوید")) {
+          clearAccountSession();
+          setAccount(null);
+          setSyncMessage("نشست حساب منقضی شده است؛ برای همگام‌سازی دوباره وارد شوید. اطلاعات محلی محفوظ است.");
+        } else {
+          setSyncMessage(message);
+        }
       } finally {
         if (active) setSyncing(false);
       }
     };
-    void runSync();
-    window.addEventListener("online", runSync);
-    return () => { active = false; window.removeEventListener("online", runSync); };
+    void restoreAndSync();
+    window.addEventListener("online", restoreAndSync);
+    return () => { active = false; window.removeEventListener("online", restoreAndSync); };
   }, []);
 
   const closeMore = useCallback(() => { setMoreOpen(false); moreBtn.current?.focus(); }, []);
@@ -100,8 +111,8 @@ export default function Layout() {
           </span>
           <div className="flex items-center gap-2">
           {account && <span className="hidden max-w-44 truncate text-xs text-slate-500 sm:inline" dir="ltr">{account.email}</span>}
-          <button type="button" disabled={syncing} onClick={() => { setSyncing(true); setSyncMessage(""); void syncAccountData().then(r => setSyncMessage(`${r.courses} دوره و ${r.chats} گفتگو همگام شد.`)).catch(e => setSyncMessage(e instanceof Error ? e.message : "همگام‌سازی ناموفق بود.")).finally(() => setSyncing(false)); }} className="btn btn-ghost min-h-10 text-xs">{syncing ? "در حال همگام‌سازی…" : "همگام‌سازی"}</button>
-          <button type="button" onClick={() => { void logoutAccount().finally(() => navigate("/login", { replace: true })); }} className="btn btn-ghost min-h-10 text-xs">خروج</button>
+          <button type="button" disabled={syncing || !account} onClick={() => { if (!account) { navigate("/login"); return; } setSyncing(true); setSyncMessage(""); void getCurrentAccount().then(() => syncAccountData()).then(r => setSyncMessage(String(r.courses) + " دوره و " + String(r.chats) + " گفتگو همگام شد.")).catch(e => setSyncMessage(e instanceof Error ? e.message : "همگام‌سازی ناموفق بود؛ اطلاعات محلی محفوظ است.")).finally(() => setSyncing(false)); }} className="btn btn-ghost min-h-10 text-xs">{syncing ? "در حال همگام‌سازی…" : account ? "همگام‌سازی" : "ورود به حساب"}</button>
+          {account && <button type="button" onClick={() => { void logoutAccount().finally(() => { setAccount(null); navigate("/login", { replace: true }); }); }} className="btn btn-ghost min-h-10 text-xs">خروج</button>}
           <button type="button" onClick={toggle} aria-pressed={dark}
                   className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm dark:border-white/20">
             <Icon name={dark ? "sun" : "moon"} className="h-4 w-4" />{dark ? "حالت روشن" : "حالت تیره"}

@@ -287,6 +287,22 @@ const chats = await listUserChats(fakeDb, "user_2234567890123456", 0);
 t("D1 chat list clamps page size and parses JSON", dbCalls.at(-1).values[1] === 1 && Array.isArray(chats) && chats[0].id === "course-1");
 
 dbCalls.length = 0;
+await listUserCourses(fakeDb, "user_1234567890123456", 25, 50);
+t("D1 course page uses bounded stable offset pagination",
+  /ORDER BY created_at ASC, course_id ASC LIMIT \? OFFSET \?/.test(dbCalls.at(-1).sql) &&
+  dbCalls.at(-1).values[1] === 25 && dbCalls.at(-1).values[2] === 50);
+dbCalls.length = 0;
+await listUserChats(fakeDb, "user_1234567890123456", 25, 75);
+t("D1 chat page uses bounded stable offset pagination",
+  /ORDER BY created_at ASC, thread_id ASC LIMIT \? OFFSET \?/.test(dbCalls.at(-1).sql) &&
+  dbCalls.at(-1).values[1] === 25 && dbCalls.at(-1).values[2] === 75);
+dbCalls.length = 0;
+await listUserTombstones(fakeDb, "user_1234567890123456", 500, 1000);
+t("D1 tombstone page uses deterministic record ordering and offset",
+  /record_type ASC, record_id ASC LIMIT \? OFFSET \?/.test(dbCalls.at(-1).sql) &&
+  dbCalls.at(-1).values[1] === 500 && dbCalls.at(-1).values[2] === 1000);
+
+dbCalls.length = 0;
 await putUserTombstone(fakeDb, "user_1234567890123456", "course", "course-1", 500);
 t("D1 deletion marker is scoped to owner, type and record id", /user_tombstones/.test(dbCalls[0].sql) && dbCalls[0].values.join("|") === "user_1234567890123456|course|course-1|500");
 t("D1 course deletion removes only an older matching course", /DELETE FROM user_courses/.test(dbCalls[1].sql) && /updatedAt/.test(dbCalls[1].sql) && dbCalls[1].values[0] === "user_1234567890123456");

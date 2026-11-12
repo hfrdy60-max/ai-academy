@@ -1,7 +1,7 @@
 import { getSetting, setSetting } from "../database/settings";
 import type { AiSettings, Profile } from "../types/settings";
 
-const KEY = { profile: "profile", ai: "ai", usage: "usage" } as const;
+const KEY = { profile: "profile", profileUpdatedAt: "profile-updated-at", ai: "ai", usage: "usage" } as const;
 
 /** Accept https URLs, or http only for localhost (so the access token is never sent in clear text over the internet). */
 export function normalizeWorkerUrl(raw: string): string {
@@ -24,11 +24,37 @@ export async function getProfile(): Promise<Profile> {
   };
 }
 
+export interface ProfileSyncSnapshot { profile: Profile; updatedAt: number }
+
+function normalizeProfile(p: Partial<Profile> | undefined): Profile {
+  const goal = Number(p?.dailyGoal);
+  return {
+    displayName: typeof p?.displayName === "string" ? p.displayName.trim().slice(0, 40) : "",
+    dailyGoal: Number.isInteger(goal) && goal >= 1 && goal <= 10 ? goal : 1
+  };
+}
+
+export async function getProfileSyncSnapshot(): Promise<ProfileSyncSnapshot> {
+  const [profile, updatedAt] = await Promise.all([
+    getProfile(), getSetting<number>(KEY.profileUpdatedAt)
+  ]);
+  return { profile, updatedAt: Number.isSafeInteger(updatedAt) && (updatedAt as number) >= 0 ? updatedAt as number : 0 };
+}
+
+export async function saveSyncedProfile(profile: Profile, updatedAt: number): Promise<void> {
+  const clean = normalizeProfile(profile);
+  if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("زمان پروفایل نامعتبر است.");
+  await setSetting(KEY.profile, clean);
+  await setSetting(KEY.profileUpdatedAt, updatedAt);
+}
+
 export async function saveProfile(p: Profile): Promise<Profile> {
   const goal = Math.round(Number(p.dailyGoal));
   if (!Number.isFinite(goal) || goal < 1 || goal > 10) throw new Error("هدف روزانه باید بین ۱ تا ۱۰ درس باشد.");
   const clean: Profile = { displayName: p.displayName.trim().slice(0, 40), dailyGoal: goal };
   await setSetting(KEY.profile, clean);
+  await setSetting(KEY.profileUpdatedAt, Date.now());
+  window.dispatchEvent(new Event("ai-academy-data-change"));
   return clean;
 }
 

@@ -51,6 +51,38 @@ async function sendCode(env: Env, email: string, code: string): Promise<void> {
 }
 function clientIp(req: Request): string { return req.headers.get("CF-Connecting-IP") ?? "unknown"; }
 
+function syncRecord(value: unknown, kind: "course" | "chat"): { id: string; payload: Record<string, unknown> } {
+  const item = obj(value, "record");
+  const id = str(item.id, "record_id", 128);
+  const payload = obj(item.payload, "payload");
+  if (payload.id !== id || !Number.isSafeInteger(payload.updatedAt) || (payload.updatedAt as number) < 0) {
+    throw new HttpError(400, "invalid_payload");
+  }
+  if (kind === "course") {
+    if (typeof payload.title !== "string" || payload.title.length > 100 ||
+        !["beginner", "intermediate", "advanced"].includes(String(payload.level)) ||
+        !Array.isArray(payload.chapters) || payload.chapters.length > 50) {
+      throw new HttpError(400, "invalid_course");
+    }
+    for (const chapter of payload.chapters) {
+      if (!chapter || typeof chapter !== "object" || Array.isArray(chapter) ||
+          !Array.isArray((chapter as Record<string, unknown>).lessons) ||
+          ((chapter as Record<string, unknown>).lessons as unknown[]).length > 100) {
+        throw new HttpError(400, "invalid_course");
+      }
+    }
+  } else {
+    if (!Array.isArray(payload.messages) || payload.messages.length > 200) throw new HttpError(400, "invalid_chat");
+    for (const message of payload.messages) {
+      if (!message || typeof message !== "object" || Array.isArray(message)) throw new HttpError(400, "invalid_chat");
+      const m = message as Record<string, unknown>;
+      if ((m.role !== "user" && m.role !== "assistant") || typeof m.content !== "string" ||
+          m.content.length > 8000 || !Number.isFinite(m.at)) throw new HttpError(400, "invalid_chat");
+    }
+  }
+  return { id, payload };
+}
+
 export async function handleAccountRoute(request: Request, env: Env, path: string): Promise<Response | null> {
   const method = request.method;
   if (!path.startsWith("/api/auth/") && !path.startsWith("/api/sync/")) return null;
@@ -119,13 +151,11 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
     const user = await currentUser(request, env);
     const body = obj(await readJsonBody(request, MAX_BODY), "body");
     if (!Array.isArray(body.records) || body.records.length > 200) throw new HttpError(400, "invalid_records");
+    const checked = body.records.map(record => syncRecord(record, "course"));
+    if (new Set(checked.map(record => record.id)).size !== checked.length) throw new HttpError(400, "duplicate_records");
     const now = Date.now();
-    for (const record of body.records) {
-      const item = obj(record, "record");
-      const id = str(item.id, "record_id", 128);
-      await putUserCourse(env.DB, user.userId, id, item.payload, now);
-    }
-    return json({ ok: true, saved: body.records.length });
+    for (const record of checked) await putUserCourse(env.DB, user.userId, record.id, record.payload, now);
+    return json({ ok: true, saved: checked.length });
   }
   if (path === "/api/sync/chats" && method === "GET") {
     const user = await currentUser(request, env);
@@ -135,13 +165,11 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
     const user = await currentUser(request, env);
     const body = obj(await readJsonBody(request, MAX_BODY), "body");
     if (!Array.isArray(body.records) || body.records.length > 200) throw new HttpError(400, "invalid_records");
+    const checked = body.records.map(record => syncRecord(record, "chat"));
+    if (new Set(checked.map(record => record.id)).size !== checked.length) throw new HttpError(400, "duplicate_records");
     const now = Date.now();
-    for (const record of body.records) {
-      const item = obj(record, "record");
-      const id = str(item.id, "record_id", 128);
-      await putUserChat(env.DB, user.userId, id, item.payload, now);
-    }
-    return json({ ok: true, saved: body.records.length });
+    for (const record of checked) await putUserChat(env.DB, user.userId, record.id, record.payload, now);
+    return json({ ok: true, saved: checked.length });
   }
   throw new HttpError(404, "not_found");
 }

@@ -64,8 +64,8 @@ async function uploadRecordBatches<T extends { id: string; payload: unknown }>(
 
 async function uploadDeletionBatches(rows: SyncTombstone[]): Promise<void> {
   const deletions = rows.map(row => ({ type: row.type, id: row.recordId, deletedAt: row.deletedAt }));
-  for (let offset = 0; offset < deletions.length; offset += 500) {
-    await accountApi("/api/sync/deletions", "PUT", { deletions: deletions.slice(offset, offset + 500) });
+  for (let offset = 0; offset < deletions.length; offset += 100) {
+    await accountApi("/api/sync/deletions", "PUT", { deletions: deletions.slice(offset, offset + 100) });
   }
 }
 

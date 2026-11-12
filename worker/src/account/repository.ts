@@ -139,7 +139,7 @@ export async function listUserCourses(db: D1Database, userId: string, limit = 10
   const safeOffset = Number.isSafeInteger(offset) ? Math.min(1_000_000, Math.max(0, offset)) : 0;
   const result = await db.prepare(
     "SELECT course_id AS id, payload, created_at, updated_at FROM user_courses " +
-    "WHERE user_id = ? ORDER BY updated_at DESC, course_id ASC LIMIT ? OFFSET ?"
+    "WHERE user_id = ? ORDER BY created_at ASC, course_id ASC LIMIT ? OFFSET ?"
   ).bind(userId, safeLimit, safeOffset).all<{ id: string; payload: string; created_at: number; updated_at: number }>();
   return parseRecords(result.results ?? []);
 }
@@ -171,7 +171,7 @@ export async function listUserChats(db: D1Database, userId: string, limit = 100,
   const safeOffset = Number.isSafeInteger(offset) ? Math.min(1_000_000, Math.max(0, offset)) : 0;
   const result = await db.prepare(
     "SELECT thread_id AS id, payload, created_at, updated_at FROM user_chats " +
-    "WHERE user_id = ? ORDER BY updated_at DESC, thread_id ASC LIMIT ? OFFSET ?"
+    "WHERE user_id = ? ORDER BY created_at ASC, thread_id ASC LIMIT ? OFFSET ?"
   ).bind(userId, safeLimit, safeOffset).all<{ id: string; payload: string; created_at: number; updated_at: number }>();
   return parseRecords(result.results ?? []);
 }

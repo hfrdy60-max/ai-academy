@@ -133,13 +133,14 @@ export async function putUserCourse(
   ).bind(userId, courseId, serialized, now, safeUpdatedAt, userId, courseId, safeUpdatedAt).run();
 }
 
-export async function listUserCourses(db: D1Database, userId: string, limit = 100): Promise<StoredRecord[]> {
+export async function listUserCourses(db: D1Database, userId: string, limit = 100, offset = 0): Promise<StoredRecord[]> {
   assertUserId(userId);
   const safeLimit = Number.isInteger(limit) ? Math.min(200, Math.max(1, limit)) : 100;
+  const safeOffset = Number.isSafeInteger(offset) ? Math.min(1_000_000, Math.max(0, offset)) : 0;
   const result = await db.prepare(
     "SELECT course_id AS id, payload, created_at, updated_at FROM user_courses " +
-    "WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?"
-  ).bind(userId, safeLimit).all<{ id: string; payload: string; created_at: number; updated_at: number }>();
+    "WHERE user_id = ? ORDER BY updated_at DESC, course_id ASC LIMIT ? OFFSET ?"
+  ).bind(userId, safeLimit, safeOffset).all<{ id: string; payload: string; created_at: number; updated_at: number }>();
   return parseRecords(result.results ?? []);
 }
 
@@ -164,13 +165,14 @@ export async function putUserChat(
   ).bind(userId, threadId, serialized, now, safeUpdatedAt, userId, threadId, safeUpdatedAt).run();
 }
 
-export async function listUserChats(db: D1Database, userId: string, limit = 100): Promise<StoredRecord[]> {
+export async function listUserChats(db: D1Database, userId: string, limit = 100, offset = 0): Promise<StoredRecord[]> {
   assertUserId(userId);
   const safeLimit = Number.isInteger(limit) ? Math.min(200, Math.max(1, limit)) : 100;
+  const safeOffset = Number.isSafeInteger(offset) ? Math.min(1_000_000, Math.max(0, offset)) : 0;
   const result = await db.prepare(
     "SELECT thread_id AS id, payload, created_at, updated_at FROM user_chats " +
-    "WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?"
-  ).bind(userId, safeLimit).all<{ id: string; payload: string; created_at: number; updated_at: number }>();
+    "WHERE user_id = ? ORDER BY updated_at DESC, thread_id ASC LIMIT ? OFFSET ?"
+  ).bind(userId, safeLimit, safeOffset).all<{ id: string; payload: string; created_at: number; updated_at: number }>();
   return parseRecords(result.results ?? []);
 }
 
@@ -195,12 +197,13 @@ export async function putUserTombstone(
   }
 }
 
-export async function listUserTombstones(db: D1Database, userId: string, limit = 1000): Promise<StoredTombstone[]> {
+export async function listUserTombstones(db: D1Database, userId: string, limit = 1000, offset = 0): Promise<StoredTombstone[]> {
   assertUserId(userId);
   const safeLimit = Number.isInteger(limit) ? Math.min(2000, Math.max(1, limit)) : 1000;
+  const safeOffset = Number.isSafeInteger(offset) ? Math.min(1_000_000, Math.max(0, offset)) : 0;
   const result = await db.prepare(
-    "SELECT record_type, record_id, deleted_at FROM user_tombstones WHERE user_id = ? ORDER BY deleted_at DESC LIMIT ?"
-  ).bind(userId, safeLimit).all<StoredTombstone>();
+    "SELECT record_type, record_id, deleted_at FROM user_tombstones WHERE user_id = ? ORDER BY deleted_at DESC, record_type ASC, record_id ASC LIMIT ? OFFSET ?"
+  ).bind(userId, safeLimit, safeOffset).all<StoredTombstone>();
   return (result.results ?? []).filter(row =>
     (row.record_type === "course" || row.record_type === "chat") &&
     typeof row.record_id === "string" && Number.isSafeInteger(row.deleted_at) && row.deleted_at >= 0

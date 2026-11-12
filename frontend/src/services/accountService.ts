@@ -50,6 +50,7 @@ export async function verifyLoginCode(email: string, code: string): Promise<Acco
   return result.user;
 }
 export function getSessionToken(): string | null { return sessionStorage.getItem(TOKEN_KEY); }
+export function clearAccountSession(): void { sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(USER_KEY); }
 export function getCachedAccount(): AccountUser | null {
   try { const raw = sessionStorage.getItem(USER_KEY); return raw ? JSON.parse(raw) as AccountUser : null; } catch { return null; }
 }

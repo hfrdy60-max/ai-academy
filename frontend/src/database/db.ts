@@ -1,11 +1,11 @@
 // Minimal IndexedDB wrapper (no library).
-// Version history: 1 = courses. 2 = + settings, chats (existing courses are kept).
+// Version history: 1 = courses; 2 = settings/chats; 3 = durable sync deletion markers.
 const DB_NAME = "ai-academy";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
-export const STORE = { courses: "courses", settings: "settings", chats: "chats" } as const;
+export const STORE = { courses: "courses", settings: "settings", chats: "chats", tombstones: "tombstones" } as const;
 export type StoreName = (typeof STORE)[keyof typeof STORE];
-const KEY_PATH: Record<StoreName, string> = { courses: "id", settings: "key", chats: "id" };
+const KEY_PATH: Record<StoreName, string> = { courses: "id", settings: "key", chats: "id", tombstones: "id" };
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -44,7 +44,7 @@ export async function withStore<T>(store: StoreName, mode: IDBTransactionMode, r
     const req = run(tx.objectStore(store));
     req.onsuccess = () => { result = req.result; };
     tx.oncomplete = () => {
-      if (mode === "readwrite" && (store === STORE.courses || store === STORE.chats)) {
+      if (mode === "readwrite" && (store === STORE.courses || store === STORE.chats || store === STORE.tombstones)) {
         window.dispatchEvent(new Event("ai-academy-data-change"));
       }
       resolve(result);

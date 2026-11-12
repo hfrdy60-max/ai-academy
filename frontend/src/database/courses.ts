@@ -25,7 +25,7 @@ export async function deleteCourse(id: string): Promise<void> {
     tx.objectStore(STORE.courses).delete(id);
     const deletedAt = Date.now();
     tx.objectStore(STORE.tombstones).put({
-      id: "course:" + id, type: "course", recordId: id, deletedAt
+      id: "course:" + id, type: "course", recordId: id, deletedAt, synced: false
     });
     tx.oncomplete = () => {
       window.dispatchEvent(new Event("ai-academy-data-change"));

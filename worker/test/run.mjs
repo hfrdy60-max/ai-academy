@@ -468,6 +468,8 @@ r = await call("/api/auth/register", { body: { email: "student@example.com" }, e
 t("account registration refuses to run before D1 is bound", r.status === 503 && r.json?.error === "database_not_configured");
 r = await call("/api/sync/courses", { method: "GET", token: null, env: { DB: undefined } });
 t("cloud sync refuses to run before D1 is bound", r.status === 503 && r.json?.error === "database_not_configured");
+r = await call("/api/sync/results", { method: "GET", token: null, env: { DB: undefined } });
+t("exam and game history sync refuses to run before D1 is bound", r.status === 503 && r.json?.error === "database_not_configured");
 r = await worker.fetch(new Request("https://api.test/api/auth/me", {
   method: "OPTIONS", headers: { Origin: ENV.ALLOWED_ORIGIN, "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "authorization" }
 }), ENV);

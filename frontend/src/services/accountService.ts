@@ -34,7 +34,14 @@ async function request<T>(path: string, options: { method?: string; body?: unkno
       invalid_or_expired_code: "کد اشتباه است یا اعتبار آن تمام شده است.",
       session_expired: "نشست شما منقضی شده است؛ دوباره وارد شوید.",
       rate_limited: "تعداد درخواست‌ها زیاد است؛ کمی بعد دوباره تلاش کنید.",
-      unauthorized: "برای ادامه وارد حساب شوید."
+      unauthorized: "برای ادامه وارد حساب شوید.",
+      invalid_pagination: "درخواست صفحه‌بندی همگام‌سازی معتبر نیست؛ صفحه را تازه‌سازی کنید.",
+      invalid_course: "یکی از دوره‌های همگام‌سازی‌شده ساختار معتبری ندارد.",
+      invalid_course_content: "محتوای یکی از درس‌ها ساختار معتبری ندارد.",
+      invalid_chat: "یکی از گفتگوهای همگام‌سازی‌شده ساختار معتبری ندارد.",
+      invalid_results: "سوابق آزمون یا بازی برای همگام‌سازی معتبر نیستند.",
+      invalid_result: "یکی از سوابق آزمون یا بازی معتبر نیست.",
+      invalid_profile: "اطلاعات پروفایل برای همگام‌سازی معتبر نیست."
     };
     throw new Error(messages[code] ?? "ارتباط با سرور برقرار نشد. تنظیمات و استقرار Worker را بررسی کنید.");
   }

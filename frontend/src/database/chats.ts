@@ -20,7 +20,7 @@ export async function deleteThread(id: string): Promise<void> {
     tx.objectStore(STORE.chats).delete(id);
     const deletedAt = Date.now();
     tx.objectStore(STORE.tombstones).put({
-      id: "chat:" + id, type: "chat", recordId: id, deletedAt
+      id: "chat:" + id, type: "chat", recordId: id, deletedAt, synced: false
     });
     tx.oncomplete = () => {
       window.dispatchEvent(new Event("ai-academy-data-change"));

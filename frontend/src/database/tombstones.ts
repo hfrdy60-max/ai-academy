@@ -20,3 +20,7 @@ export async function listTombstones(): Promise<SyncTombstone[]> {
 export async function saveTombstone(row: SyncTombstone): Promise<void> {
   await withStore(STORE.tombstones, "readwrite", store => store.put(row));
 }
+
+export async function deleteTombstone(id: string): Promise<void> {
+  await withStore(STORE.tombstones, "readwrite", store => store.delete(id));
+}

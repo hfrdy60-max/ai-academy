@@ -153,13 +153,13 @@ export async function handleAccountRoute(request: Request, env: Env, path: strin
     if (!Array.isArray(body.deletions) || body.deletions.length > 1000) throw new HttpError(400, "invalid_deletions");
     const checked = body.deletions.map(value => {
       const item = obj(value, "deletion");
-      const type = item.type;
+      const rawType = item.type;
       const id = str(item.id, "record_id", 128);
       const deletedAt = item.deletedAt;
-      if ((type !== "course" && type !== "chat") || !Number.isSafeInteger(deletedAt) || (deletedAt as number) < 0) {
+      if ((rawType !== "course" && rawType !== "chat") || !Number.isSafeInteger(deletedAt) || (deletedAt as number) < 0) {
         throw new HttpError(400, "invalid_deletion");
       }
-      return { type, id, deletedAt: deletedAt as number };
+      return { type: rawType as "course" | "chat", id, deletedAt: deletedAt as number };
     });
     if (new Set(checked.map(x => x.type + ":" + x.id)).size !== checked.length) throw new HttpError(400, "duplicate_deletions");
     for (const item of checked) await putUserTombstone(env.DB, user.userId, item.type, item.id, item.deletedAt);

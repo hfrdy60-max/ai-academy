@@ -259,6 +259,43 @@ export async function trimUserResults(db: D1Database, userId: string, type: "exa
   ).bind(userId, type, userId, type, safeKeep).run();
 }
 
+export interface StoredUserProfile {
+  payload: { displayName: string; dailyGoal: number };
+  updated_at: number;
+}
+
+export async function getUserProfile(db: D1Database, userId: string): Promise<StoredUserProfile | null> {
+  assertUserId(userId);
+  const row = await db.prepare(
+    "SELECT payload, updated_at FROM user_profiles WHERE user_id = ? LIMIT 1"
+  ).bind(userId).first<{ payload: string; updated_at: number }>();
+  if (!row) return null;
+  let payload: unknown;
+  try { payload = JSON.parse(row.payload); }
+  catch { throw new Error("stored_payload_invalid"); }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("stored_payload_invalid");
+  const p = payload as Record<string, unknown>;
+  if (typeof p.displayName !== "string" || !Number.isInteger(p.dailyGoal)) throw new Error("stored_payload_invalid");
+  return { payload: { displayName: p.displayName, dailyGoal: p.dailyGoal as number }, updated_at: row.updated_at };
+}
+
+export async function putUserProfile(
+  db: D1Database, userId: string, profile: { displayName: string; dailyGoal: number }, updatedAt: number
+): Promise<void> {
+  assertUserId(userId);
+  if (!profile || typeof profile.displayName !== "string" || profile.displayName.length > 40 ||
+      !Number.isInteger(profile.dailyGoal) || profile.dailyGoal < 1 || profile.dailyGoal > 10 ||
+      !Number.isSafeInteger(updatedAt) || updatedAt < 0) {
+    throw new Error("invalid_profile");
+  }
+  const serialized = serializePayload(profile);
+  await db.prepare(
+    "INSERT INTO user_profiles (user_id, payload, updated_at) VALUES (?, ?, ?) " +
+    "ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at " +
+    "WHERE user_profiles.updated_at <= excluded.updated_at"
+  ).bind(userId, serialized, updatedAt).run();
+}
+
 export async function saveEmailVerification(
   db: D1Database, value: unknown, codeHash: string, createdAt: number, expiresAt: number
 ): Promise<void> {

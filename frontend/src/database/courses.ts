@@ -1,5 +1,5 @@
 import type { Course } from "../types/course";
-import { STORE, withStore } from "./db";
+import { STORE, openDb, withStore } from "./db";
 
 export async function listCourses(): Promise<Course[]> {
   const all = await withStore<Course[]>(STORE.courses, "readonly", s => s.getAll());
@@ -14,5 +14,19 @@ export async function saveCourse(course: Course): Promise<void> {
 }
 
 export async function deleteCourse(id: string): Promise<void> {
-  await withStore(STORE.courses, "readwrite", s => s.delete(id));
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([STORE.courses, STORE.tombstones], "readwrite");
+    tx.objectStore(STORE.courses).delete(id);
+    const deletedAt = Date.now();
+    tx.objectStore(STORE.tombstones).put({
+      id: "course:" + id, type: "course", recordId: id, deletedAt
+    });
+    tx.oncomplete = () => {
+      window.dispatchEvent(new Event("ai-academy-data-change"));
+      resolve();
+    };
+    tx.onerror = () => reject(tx.error ?? new Error("ثبت حذف برای همگام‌سازی ناموفق بود."));
+    tx.onabort = () => reject(tx.error ?? new Error("حذف لغو شد."));
+  });
 }

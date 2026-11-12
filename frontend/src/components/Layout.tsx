@@ -53,7 +53,7 @@ export default function Layout() {
         setAccount(current);
         setSyncing(true);
         const result = await syncAccountData();
-        if (active) setSyncMessage(String(result.courses) + " دوره و " + String(result.chats) + " گفتگو همگام شد.");
+        if (active) setSyncMessage(String(result.courses) + " دوره، " + String(result.chats) + " گفتگو، " + String(result.exams) + " آزمون و " + String(result.games) + " بازی همگام شد.");
       } catch (error) {
         if (!active) return;
         const message = error instanceof Error ? error.message : "همگام‌سازی انجام نشد؛ اطلاعات محلی محفوظ است.";

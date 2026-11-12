@@ -120,10 +120,14 @@ export async function putUserCourse(
   assertId(courseId, "invalid_record_id");
   const serialized = serializePayload(payload);
   if (!Number.isSafeInteger(now) || now < 0) throw new Error("invalid_timestamp");
+  const payloadUpdatedAt = payload && typeof payload === "object"
+    ? (payload as Record<string, unknown>).updatedAt : undefined;
+  if (!Number.isSafeInteger(payloadUpdatedAt) || (payloadUpdatedAt as number) < 0) throw new Error("invalid_payload_timestamp");
   await db.prepare(
     "INSERT INTO user_courses (user_id, course_id, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?) " +
-    "ON CONFLICT(user_id, course_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at"
-  ).bind(userId, courseId, serialized, now, now).run();
+    "ON CONFLICT(user_id, course_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at " +
+    "WHERE CAST(json_extract(user_courses.payload, '$.updatedAt') AS INTEGER) <= CAST(json_extract(excluded.payload, '$.updatedAt') AS INTEGER)"
+  ).bind(userId, courseId, serialized, now, payloadUpdatedAt).run();
 }
 
 export async function listUserCourses(db: D1Database, userId: string, limit = 100): Promise<StoredRecord[]> {
@@ -143,10 +147,14 @@ export async function putUserChat(
   assertId(threadId, "invalid_record_id");
   const serialized = serializePayload(payload);
   if (!Number.isSafeInteger(now) || now < 0) throw new Error("invalid_timestamp");
+  const payloadUpdatedAt = payload && typeof payload === "object"
+    ? (payload as Record<string, unknown>).updatedAt : undefined;
+  if (!Number.isSafeInteger(payloadUpdatedAt) || (payloadUpdatedAt as number) < 0) throw new Error("invalid_payload_timestamp");
   await db.prepare(
     "INSERT INTO user_chats (user_id, thread_id, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?) " +
-    "ON CONFLICT(user_id, thread_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at"
-  ).bind(userId, threadId, serialized, now, now).run();
+    "ON CONFLICT(user_id, thread_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at " +
+    "WHERE CAST(json_extract(user_chats.payload, '$.updatedAt') AS INTEGER) <= CAST(json_extract(excluded.payload, '$.updatedAt') AS INTEGER)"
+  ).bind(userId, threadId, serialized, now, payloadUpdatedAt).run();
 }
 
 export async function listUserChats(db: D1Database, userId: string, limit = 100): Promise<StoredRecord[]> {

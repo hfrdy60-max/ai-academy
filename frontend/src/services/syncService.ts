@@ -54,8 +54,10 @@ async function uploadRecordBatches<T extends { id: string; payload: unknown }>(
     } else {
       batch = candidate;
     }
+    const payloadJson = JSON.stringify(record.payload) ?? "";
+    const payloadSize = new TextEncoder().encode(payloadJson).byteLength;
     const singleSize = new TextEncoder().encode(JSON.stringify({ records: [record] })).byteLength;
-    if (singleSize > maxBatchBytes) {
+    if (payloadSize > 1_500_000 || singleSize > maxBatchBytes) {
       throw new Error("یکی از داده‌های همگام‌سازی از حد مجاز بزرگ‌تر است؛ نسخه پشتیبان تهیه و محتوای آن را بررسی کنید.");
     }
   }

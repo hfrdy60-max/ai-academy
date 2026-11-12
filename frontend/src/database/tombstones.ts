@@ -5,6 +5,8 @@ export interface SyncTombstone {
   type: "course" | "chat";
   recordId: string;
   deletedAt: number;
+  /** False until the deletion has been acknowledged by the account backend. */
+  synced?: boolean;
 }
 
 export const tombstoneId = (type: SyncTombstone["type"], recordId: string) => `${type}:${recordId}`;
@@ -14,7 +16,7 @@ export async function listTombstones(): Promise<SyncTombstone[]> {
   return rows.filter(row =>
     row && (row.type === "course" || row.type === "chat") &&
     typeof row.recordId === "string" && Number.isSafeInteger(row.deletedAt) && row.deletedAt >= 0
-  );
+  ).map(row => ({ ...row, synced: row.synced === true }));
 }
 
 export async function saveTombstone(row: SyncTombstone): Promise<void> {

@@ -69,6 +69,7 @@ export async function saveProfile(p: Profile): Promise<Profile> {
   await setSettings({ [KEY.profile]: clean, [KEY.profileUpdatedAt]: updatedAt });
   window.dispatchEvent(new Event("ai-academy-profile-change"));
   window.dispatchEvent(new Event("ai-academy-data-change"));
+  window.dispatchEvent(new Event("ai-academy-local-change"));
   return clean;
 }
 

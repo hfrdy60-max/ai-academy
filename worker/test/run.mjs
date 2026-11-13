@@ -311,6 +311,22 @@ dbCalls.length = 0;
 await putUserTombstone(fakeDb, "user_1234567890123456", "chat", "thread-1", 600, 550);
 t("D1 chat deletion removes the matching cloud thread unconditionally", /DELETE FROM user_chats/.test(dbCalls[2].sql) && dbCalls[2].values[1] === "thread-1");
 dbCalls.length = 0;
+await putUserCourse(fakeDb, "user_1234567890123456", "course-1", {
+  id: "course-1", updatedAt: Date.now() + 86_400_000, title: "stale fast-clock copy"
+}, Date.now());
+t("D1 course upsert cannot remove or bypass a permanent deletion marker",
+  dbCalls.length === 1 && /NOT EXISTS \(SELECT 1 FROM user_tombstones/.test(dbCalls[0].sql) &&
+  dbCalls[0].values[0] === "user_1234567890123456" &&
+  !dbCalls.some(call => call.sql.includes("DELETE FROM user_tombstones")));
+dbCalls.length = 0;
+await putUserChat(fakeDb, "user_1234567890123456", "thread-1", {
+  id: "thread-1", updatedAt: Date.now() + 86_400_000, messages: []
+}, Date.now());
+t("D1 chat upsert cannot remove or bypass a permanent deletion marker",
+  dbCalls.length === 1 && /NOT EXISTS \(SELECT 1 FROM user_tombstones/.test(dbCalls[0].sql) &&
+  dbCalls[0].values[0] === "user_1234567890123456" &&
+  !dbCalls.some(call => call.sql.includes("DELETE FROM user_tombstones")));
+dbCalls.length = 0;
 let invalidTombstoneTime = false;
 try { await putUserTombstone(fakeDb, "user_1234567890123456", "course", "course-1", -1); } catch (error) { invalidTombstoneTime = error.message === "invalid_timestamp"; }
 t("D1 deletion marker rejects negative timestamps before database access", invalidTombstoneTime && dbCalls.length === 0);

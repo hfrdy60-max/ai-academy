@@ -16,7 +16,13 @@ export async function listTombstones(): Promise<SyncTombstone[]> {
   return rows.filter(row =>
     row && (row.type === "course" || row.type === "chat") &&
     typeof row.recordId === "string" && Number.isSafeInteger(row.deletedAt) && row.deletedAt >= 0
-  ).map(row => ({ ...row, synced: row.synced === true }));
+  ).map(row => ({
+    ...row,
+    // Existing markers predate the acknowledgement flag and were uploaded by
+    // the previous sync algorithm. Do not replay them as fresh deletes: a
+    // newer cloud record may already have legitimately superseded the marker.
+    synced: row.synced !== false
+  }));
 }
 
 export async function saveTombstone(row: SyncTombstone): Promise<void> {

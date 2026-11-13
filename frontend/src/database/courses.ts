@@ -37,6 +37,7 @@ export async function deleteCourse(id: string): Promise<void> {
     };
     tx.oncomplete = () => {
       window.dispatchEvent(new Event("ai-academy-data-change"));
+      window.dispatchEvent(new Event("ai-academy-local-change"));
       resolve();
     };
     tx.onerror = () => reject(tx.error ?? new Error("ثبت حذف برای همگام‌سازی ناموفق بود."));

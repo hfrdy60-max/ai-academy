@@ -142,14 +142,12 @@ export function syncAccountData(): Promise<SyncSummary> {
         const id = tombstoneId(type, item.id);
         const deletion = tombstones.get(id);
         if (!deletion) { kept.push(item); continue; }
-        if (deletion.synced !== true || deletion.deletedAt >= item.updatedAt) {
-          // Remove stale local copies too; filtering the upload alone would leave them visible offline.
-          if (type === "course") await purgeCourse(item.id);
-          else await purgeThread(item.id);
-          continue;
-        }
-        // A genuinely newer edit supersedes an older deletion marker.
-        tombstones.delete(id);
+        // A deletion is final for this record ID. A device clock that runs
+        // ahead must never turn an old local copy into a resurrected course/chat.
+        // Creating a new course or thread naturally receives a different ID.
+        if (type === "course") await purgeCourse(item.id);
+        else await purgeThread(item.id);
+        continue;
       }
       return kept;
     };

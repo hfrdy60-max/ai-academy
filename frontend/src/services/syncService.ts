@@ -1,5 +1,5 @@
-import { listCourses, saveCourseIfUnchanged, purgeCourse } from "../database/courses";
-import { listThreads, saveThreadIfUnchanged, purgeThread } from "../database/chats";
+import { getCourse, listCourses, saveCourse, saveCourseIfUnchanged, purgeCourse } from "../database/courses";
+import { getThread, listThreads, saveThread, saveThreadIfUnchanged, purgeThread } from "../database/chats";
 import { accountApi } from "./accountService";
 import type { Course } from "../types/course";
 import type { ChatThread } from "../types/chat";
@@ -177,11 +177,28 @@ export function syncAccountData(): Promise<SyncSummary> {
     const localChatVersions = new Map(localChats.map(thread => [thread.id, thread.updatedAt]));
     for (const course of liveCourses) {
       const expected = localCourseVersions.has(course.id) ? localCourseVersions.get(course.id)! : null;
-      await saveCourseIfUnchanged(course, expected);
+      const saved = await saveCourseIfUnchanged(course, expected);
+      if (!saved) {
+        // The learner edited this course after our sync snapshot. Preserve that
+        // local edit and advance its revision beyond the cloud snapshot so the
+        // follow-up sync cannot immediately replace it with the older snapshot.
+        const current = await getCourse(course.id);
+        if (current) {
+          current.updatedAt = Math.max(Date.now(), current.updatedAt + 1, course.updatedAt + 1);
+          await saveCourse(current);
+        }
+      }
     }
     for (const thread of liveChats) {
       const expected = localChatVersions.has(thread.id) ? localChatVersions.get(thread.id)! : null;
-      await saveThreadIfUnchanged(thread, expected);
+      const saved = await saveThreadIfUnchanged(thread, expected);
+      if (!saved) {
+        const current = await getThread(thread.id);
+        if (current) {
+          current.updatedAt = Math.max(Date.now(), current.updatedAt + 1, thread.updatedAt + 1);
+          await saveThread(current);
+        }
+      }
     }
 
     await uploadRecordBatches("/api/sync/courses", liveCourses.map(payload => ({ id: payload.id, payload })));

@@ -66,8 +66,9 @@ async function uploadRecordBatches<T extends { id: string; payload: unknown }>(
 
 async function uploadDeletionBatches(rows: SyncTombstone[]): Promise<void> {
   const deletions = rows.map(row => ({ type: row.type, id: row.recordId, deletedAt: row.deletedAt }));
-  for (let offset = 0; offset < deletions.length; offset += 100) {
-    await accountApi("/api/sync/deletions", "PUT", { deletions: deletions.slice(offset, offset + 100) });
+  // The API accepts up to 1000 markers and 500 short IDs remain far below its body limit.
+  for (let offset = 0; offset < deletions.length; offset += 500) {
+    await accountApi("/api/sync/deletions", "PUT", { deletions: deletions.slice(offset, offset + 500) });
   }
 }
 
@@ -111,7 +112,7 @@ export function syncAccountData(): Promise<SyncSummary> {
     const [cloudCourses, cloudChats, cloudDeletions, cloudResults, cloudProfile] = await Promise.all([
       fetchAllPages<CloudRecord<Course>, "records">("/api/sync/courses", "records", 25),
       fetchAllPages<CloudRecord<ChatThread>, "records">("/api/sync/chats", "records", 25),
-      fetchAllPages<{ record_type: "course" | "chat"; record_id: string; deleted_at: number }, "deletions">("/api/sync/deletions", "deletions", 500),
+      fetchAllPages<{ record_type: "course" | "chat"; record_id: string; deleted_at: number }, "deletions">("/api/sync/deletions", "deletions", 2000),
       accountApi<{ records: CloudResultRecord[] }>("/api/sync/results", "GET"),
       accountApi<CloudProfile>("/api/sync/profile", "GET")
     ]);

@@ -160,8 +160,8 @@ export function syncAccountData(): Promise<SyncSummary> {
     for (const row of tombstones.values()) await saveTombstone(row);
     for (const id of priorIds) if (!tombstones.has(id)) await deleteTombstone(id);
 
-    for (const course of liveCourses) await saveCourse(course);
-    for (const thread of liveChats) await saveThread(thread);
+    for (const course of liveCourses) await saveCourse(course, true);
+    for (const thread of liveChats) await saveThread(thread, true);
 
     await uploadRecordBatches("/api/sync/courses", liveCourses.map(payload => ({ id: payload.id, payload })));
     await uploadRecordBatches("/api/sync/chats", liveChats.map(payload => ({ id: payload.id, payload })));

@@ -119,8 +119,23 @@ export function syncAccountData(): Promise<SyncSummary> {
 
     // Pick up deletes made while the initial local snapshot or remote reads were running.
     const currentLocalTombstones = await listTombstones();
+    const remoteDeletionIds = new Set(
+      cloudDeletions
+        .filter(row => (row.record_type === "course" || row.record_type === "chat") &&
+          typeof row.record_id === "string" && Number.isSafeInteger(row.deleted_at) && row.deleted_at >= 0)
+        .map(row => tombstoneId(row.record_type, row.record_id))
+    );
+    // Reconcile older local markers against the authoritative cloud list. This
+    // also retries legacy deletions that were saved locally when an earlier
+    // sync attempt failed before the server acknowledged them.
+    const unacknowledgedTombstones = currentLocalTombstones.filter(row => !remoteDeletionIds.has(row.id));
+    if (unacknowledgedTombstones.length) {
+      await uploadDeletionBatches(unacknowledgedTombstones);
+      for (const row of unacknowledgedTombstones) await saveTombstone({ ...row, synced: true });
+    }
+
     const tombstones = new Map<string, SyncTombstone>();
-    for (const row of currentLocalTombstones) tombstones.set(row.id, row);
+    for (const row of currentLocalTombstones) tombstones.set(row.id, { ...row, synced: true });
     for (const row of cloudDeletions) {
       if ((row.record_type !== "course" && row.record_type !== "chat") ||
           typeof row.record_id !== "string" || !Number.isSafeInteger(row.deleted_at) || row.deleted_at < 0) continue;

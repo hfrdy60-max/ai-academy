@@ -10,8 +10,34 @@ export const getCourse = (id: string): Promise<Course | undefined> =>
   withStore<Course | undefined>(STORE.courses, "readonly", s => s.get(id));
 
 export async function saveCourse(course: Course, fromSync = false): Promise<void> {
-  await withStore(STORE.courses, "readwrite", s => s.put(course));
-  if (!fromSync) window.dispatchEvent(new Event("ai-academy-local-change"));
+  if (fromSync) {
+    await withStore(STORE.courses, "readwrite", store => store.put(course));
+    return;
+  }
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE.courses, "readwrite");
+    const store = tx.objectStore(STORE.courses);
+    const lookup = store.get(course.id);
+    let failure: Error | null = null;
+    lookup.onsuccess = () => {
+      const current = lookup.result as Course | undefined;
+      const currentRevision = Number.isSafeInteger(current?.updatedAt) && (current?.updatedAt as number) >= 0
+        ? current?.updatedAt as number : 0;
+      const nextRevision = Math.max(course.updatedAt, Date.now(), currentRevision + 1);
+      if (!Number.isSafeInteger(nextRevision)) {
+        failure = new Error("نسخه ویرایش دوره معتبر نیست.");
+        tx.abort();
+        return;
+      }
+      store.put(nextRevision === course.updatedAt ? course : { ...course, updatedAt: nextRevision });
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(failure ?? tx.error ?? new Error("ذخیره دوره ناموفق بود."));
+    tx.onabort = () => reject(failure ?? tx.error ?? new Error("ذخیره دوره لغو شد."));
+  });
+  window.dispatchEvent(new Event("ai-academy-data-change"));
+  window.dispatchEvent(new Event("ai-academy-local-change"));
 }
 
 export async function saveCourseIfUnchanged(course: Course, expectedUpdatedAt: number | null): Promise<boolean> {

@@ -425,7 +425,7 @@ t("D1 repository rejects oversized JSON records before writing", hugePayloadReje
 dbCalls.length = 0;
 let boundaryPayloadAccepted = true;
 try { await putUserCourse(fakeDb, "user_1234567890123456", "boundary", { data: "x".repeat(1_500_000 - 11) }, 1); } catch { boundaryPayloadAccepted = false; }
-t("D1 repository accepts JSON payload at exactly 1.5 MB", boundaryPayloadAccepted && dbCalls.length === 2 && /INSERT INTO user_courses/.test(dbCalls[1].sql));
+t("D1 repository accepts JSON payload at exactly 1.5 MB", boundaryPayloadAccepted && dbCalls.length === 1 && /INSERT INTO user_courses/.test(dbCalls[0].sql));
 
 dbCalls.length = 0;
 let overBoundaryPayloadRejected = false;

@@ -66,21 +66,22 @@ export function mergeHistories<T extends { id: string; date: number }>(
   return [...byId.values()].sort((a, b) => b.date - a.date).slice(0, HISTORY_LIMIT);
 }
 
-function notifyResultsChanged(): void {
+function notifyResultsChanged(localChange = false): void {
   window.dispatchEvent(new Event("ai-academy-results-change"));
   window.dispatchEvent(new Event("ai-academy-data-change"));
+  if (localChange) window.dispatchEvent(new Event("ai-academy-local-change"));
 }
 
 export function writeExamHistory(records: ExamResult[]): void {
   const safe = mergeHistories([], records, isExamResult);
   localStorage.setItem(EXAM_RESULTS_KEY, JSON.stringify(safe));
-  notifyResultsChanged();
+  notifyResultsChanged(true);
 }
 
 export function writeGameHistory(records: GameResult[]): void {
   const safe = mergeHistories([], records, isGameResult);
   localStorage.setItem(GAME_RESULTS_KEY, JSON.stringify(safe));
-  notifyResultsChanged();
+  notifyResultsChanged(true);
 }
 
 export function writeSyncedHistories(exams: ExamResult[], games: GameResult[]): void {

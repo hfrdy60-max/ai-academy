@@ -123,18 +123,18 @@ export default function Settings() {
 
       <section className="card space-y-3" aria-labelledby="s-data">
         <h2 id="s-data" className="font-bold">داده‌های من</h2>
-        <p className="muted text-sm leading-7">دوره‌ها، گفتگوها، سوابق آزمون و بازی و پروفایل روی این دستگاه نگهداری می‌شوند. پس از ورود به حساب و راه‌اندازی بک‌اند، این اطلاعات با همگام‌سازی به فضای ابری منتقل می‌شوند. پیش از پاک کردن اطلاعات سایت، فایل پشتیبان بگیرید.</p>
+        <p className="muted text-sm leading-7">دوره‌ها، گفتگوها، سوابق آزمون و بازی و پروفایل روی این دستگاه نگهداری می‌شوند. پس از ورود به حساب و راه‌اندازی بک‌اند، این اطلاعات با همگام‌سازی به فضای ابری منتقل می‌شوند. دکمه پاک‌کردن، فقط اطلاعات همین دستگاه را حذف می‌کند و داده‌های ابری حساب را پاک نمی‌کند؛ در همگام‌سازی بعدی، اطلاعات ابری دوباره روی دستگاه دریافت می‌شوند. برای جلوگیری از از دست رفتن اطلاعات، پیش از این کار فایل پشتیبان بگیرید.</p>
         <Note m={dataMsg} />
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn btn-ghost" onClick={() => void onExport()}><Icon name="download" className="h-4 w-4" />دریافت فایل پشتیبان</button>
           <label className="btn btn-ghost cursor-pointer"><Icon name="upload" className="h-4 w-4" />وارد کردن فایل پشتیبان
             <input ref={fileRef} type="file" accept=".json,application/json" className="sr-only" onChange={e => void onImport(e.target.files?.[0])} /></label>
-          <button type="button" className="btn btn-danger" onClick={() => setConfirmWipe(true)}><Icon name="trash" className="h-4 w-4" />پاک کردن همه داده‌ها</button>
+          <button type="button" className="btn btn-danger" onClick={() => setConfirmWipe(true)}><Icon name="trash" className="h-4 w-4" />پاک کردن داده‌های این دستگاه</button>
         </div>
       </section>
 
-      <ConfirmDialog open={confirmWipe} title="پاک کردن همه داده‌ها" message="همه دوره‌ها، پیشرفت، گفتگوها، پروفایل و تنظیمات اتصال از این دستگاه برای همیشه حذف می‌شود. این کار قابل بازگشت نیست."
-        confirmLabel="پاک کردن همه" onConfirm={() => void onWipe()} onCancel={() => setConfirmWipe(false)} />
+      <ConfirmDialog open={confirmWipe} title="پاک کردن داده‌های این دستگاه" message="این کار فقط دوره‌ها، پیشرفت، گفتگوها، پروفایل، سوابق و تنظیمات محلی را از همین دستگاه حذف می‌کند. داده‌های حساب ابری حذف نمی‌شوند و در همگام‌سازی بعدی دوباره دریافت خواهند شد. این کار محلی قابل بازگشت نیست؛ ابتدا فایل پشتیبان بگیرید."
+        confirmLabel="پاک کردن داده‌های محلی" onConfirm={() => void onWipe()} onCancel={() => setConfirmWipe(false)} />
     </div>
   );
 }

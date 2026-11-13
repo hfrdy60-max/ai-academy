@@ -14,6 +14,32 @@ export async function saveCourse(course: Course, fromSync = false): Promise<void
   if (!fromSync) window.dispatchEvent(new Event("ai-academy-local-change"));
 }
 
+export async function saveCourseIfUnchanged(course: Course, expectedUpdatedAt: number | null): Promise<boolean> {
+  const db = await openDb();
+  return new Promise<boolean>((resolve, reject) => {
+    const tx = db.transaction(STORE.courses, "readwrite");
+    const store = tx.objectStore(STORE.courses);
+    const lookup = store.get(course.id);
+    let saved = false;
+    lookup.onsuccess = () => {
+      const current = lookup.result as Course | undefined;
+      const unchanged = expectedUpdatedAt === null
+        ? current === undefined
+        : current !== undefined && current.updatedAt === expectedUpdatedAt;
+      if (unchanged) {
+        store.put(course);
+        saved = true;
+      }
+    };
+    tx.oncomplete = () => {
+      window.dispatchEvent(new Event("ai-academy-data-change"));
+      resolve(saved);
+    };
+    tx.onerror = () => reject(tx.error ?? new Error("ذخیره نسخه همگام‌شده ناموفق بود."));
+    tx.onabort = () => reject(tx.error ?? new Error("ذخیره نسخه همگام‌شده لغو شد."));
+  });
+}
+
 /** Remove a locally stale copy while applying a tombstone received from the cloud. */
 export async function purgeCourse(id: string): Promise<void> {
   await withStore(STORE.courses, "readwrite", store => store.delete(id));

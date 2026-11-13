@@ -4,8 +4,9 @@ import { STORE, openDb, withStore } from "./db";
 export const getThread = (id: string): Promise<ChatThread | undefined> =>
   withStore<ChatThread | undefined>(STORE.chats, "readonly", s => s.get(id));
 
-export async function saveThread(t: ChatThread): Promise<void> {
+export async function saveThread(t: ChatThread, fromSync = false): Promise<void> {
   await withStore(STORE.chats, "readwrite", s => s.put(t));
+  if (!fromSync) window.dispatchEvent(new Event("ai-academy-local-change"));
 }
 
 /** Remove a locally stale copy while applying a tombstone received from the cloud. */

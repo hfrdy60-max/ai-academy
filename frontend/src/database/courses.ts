@@ -9,8 +9,9 @@ export async function listCourses(): Promise<Course[]> {
 export const getCourse = (id: string): Promise<Course | undefined> =>
   withStore<Course | undefined>(STORE.courses, "readonly", s => s.get(id));
 
-export async function saveCourse(course: Course): Promise<void> {
+export async function saveCourse(course: Course, fromSync = false): Promise<void> {
   await withStore(STORE.courses, "readwrite", s => s.put(course));
+  if (!fromSync) window.dispatchEvent(new Event("ai-academy-local-change"));
 }
 
 /** Remove a locally stale copy while applying a tombstone received from the cloud. */

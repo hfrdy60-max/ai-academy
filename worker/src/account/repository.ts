@@ -124,11 +124,12 @@ export async function putUserCourse(
     ? (payload as Record<string, unknown>).updatedAt : undefined;
   const safeUpdatedAt = Number.isSafeInteger(payloadUpdatedAt) && (payloadUpdatedAt as number) >= 0 ? payloadUpdatedAt as number : now;
   await db.prepare(
-    "INSERT INTO user_courses (user_id, course_id, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?) " +
+    "INSERT INTO user_courses (user_id, course_id, payload, created_at, updated_at) " +
+    "SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM user_tombstones WHERE user_id = ? AND record_type = 'course' AND record_id = ?) " +
     "ON CONFLICT(user_id, course_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at " +
     "WHERE CAST(json_extract(user_courses.payload, '$.updatedAt') AS INTEGER) <= CAST(json_extract(excluded.payload, '$.updatedAt') AS INTEGER) " +
     "AND NOT EXISTS (SELECT 1 FROM user_tombstones WHERE user_id = ? AND record_type = 'course' AND record_id = ?)"
-  ).bind(userId, courseId, serialized, now, safeUpdatedAt, userId, courseId).run();
+  ).bind(userId, courseId, serialized, now, safeUpdatedAt, userId, courseId, userId, courseId).run();
 }
 
 export async function listUserCourses(db: D1Database, userId: string, limit = 100, offset = 0): Promise<StoredRecord[]> {
@@ -154,11 +155,12 @@ export async function putUserChat(
   const safeUpdatedAt = Number.isSafeInteger(payloadUpdatedAt) && (payloadUpdatedAt as number) >= 0
     ? payloadUpdatedAt as number : now;
   await db.prepare(
-    "INSERT INTO user_chats (user_id, thread_id, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?) " +
+    "INSERT INTO user_chats (user_id, thread_id, payload, created_at, updated_at) " +
+    "SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM user_tombstones WHERE user_id = ? AND record_type = 'chat' AND record_id = ?) " +
     "ON CONFLICT(user_id, thread_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at " +
     "WHERE CAST(json_extract(user_chats.payload, '$.updatedAt') AS INTEGER) <= CAST(json_extract(excluded.payload, '$.updatedAt') AS INTEGER) " +
     "AND NOT EXISTS (SELECT 1 FROM user_tombstones WHERE user_id = ? AND record_type = 'chat' AND record_id = ?)"
-  ).bind(userId, threadId, serialized, now, safeUpdatedAt, userId, threadId).run();
+  ).bind(userId, threadId, serialized, now, safeUpdatedAt, userId, threadId, userId, threadId).run();
 }
 
 export async function listUserChats(db: D1Database, userId: string, limit = 100, offset = 0): Promise<StoredRecord[]> {

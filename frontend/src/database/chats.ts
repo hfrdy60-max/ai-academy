@@ -9,6 +9,32 @@ export async function saveThread(t: ChatThread, fromSync = false): Promise<void>
   if (!fromSync) window.dispatchEvent(new Event("ai-academy-local-change"));
 }
 
+export async function saveThreadIfUnchanged(thread: ChatThread, expectedUpdatedAt: number | null): Promise<boolean> {
+  const db = await openDb();
+  return new Promise<boolean>((resolve, reject) => {
+    const tx = db.transaction(STORE.chats, "readwrite");
+    const store = tx.objectStore(STORE.chats);
+    const lookup = store.get(thread.id);
+    let saved = false;
+    lookup.onsuccess = () => {
+      const current = lookup.result as ChatThread | undefined;
+      const unchanged = expectedUpdatedAt === null
+        ? current === undefined
+        : current !== undefined && current.updatedAt === expectedUpdatedAt;
+      if (unchanged) {
+        store.put(thread);
+        saved = true;
+      }
+    };
+    tx.oncomplete = () => {
+      window.dispatchEvent(new Event("ai-academy-data-change"));
+      resolve(saved);
+    };
+    tx.onerror = () => reject(tx.error ?? new Error("ذخیره گفتگوی همگام‌شده ناموفق بود."));
+    tx.onabort = () => reject(tx.error ?? new Error("ذخیره گفتگوی همگام‌شده لغو شد."));
+  });
+}
+
 /** Remove a locally stale copy while applying a tombstone received from the cloud. */
 export async function purgeThread(id: string): Promise<void> {
   await withStore(STORE.chats, "readwrite", store => store.delete(id));

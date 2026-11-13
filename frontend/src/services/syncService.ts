@@ -1,5 +1,5 @@
-import { listCourses, saveCourse, purgeCourse } from "../database/courses";
-import { listThreads, saveThread, purgeThread } from "../database/chats";
+import { listCourses, saveCourseIfUnchanged, purgeCourse } from "../database/courses";
+import { listThreads, saveThreadIfUnchanged, purgeThread } from "../database/chats";
 import { accountApi } from "./accountService";
 import type { Course } from "../types/course";
 import type { ChatThread } from "../types/chat";
@@ -173,8 +173,16 @@ export function syncAccountData(): Promise<SyncSummary> {
     for (const row of tombstones.values()) await saveTombstone(row);
     for (const id of priorIds) if (!tombstones.has(id)) await deleteTombstone(id);
 
-    for (const course of liveCourses) await saveCourse(course, true);
-    for (const thread of liveChats) await saveThread(thread, true);
+    const localCourseVersions = new Map(localCourses.map(course => [course.id, course.updatedAt]));
+    const localChatVersions = new Map(localChats.map(thread => [thread.id, thread.updatedAt]));
+    for (const course of liveCourses) {
+      const expected = localCourseVersions.has(course.id) ? localCourseVersions.get(course.id)! : null;
+      await saveCourseIfUnchanged(course, expected);
+    }
+    for (const thread of liveChats) {
+      const expected = localChatVersions.has(thread.id) ? localChatVersions.get(thread.id)! : null;
+      await saveThreadIfUnchanged(thread, expected);
+    }
 
     await uploadRecordBatches("/api/sync/courses", liveCourses.map(payload => ({ id: payload.id, payload })));
     await uploadRecordBatches("/api/sync/chats", liveChats.map(payload => ({ id: payload.id, payload })));

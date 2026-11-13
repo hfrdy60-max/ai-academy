@@ -33,13 +33,29 @@ export default function Layout() {
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const changed = () => {
-      if (!getSessionToken() || !navigator.onLine || isAccountSyncInProgress()) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => { void syncAccountData().catch(() => { /* manual sync remains available */ }); }, 1800);
+    const runWhenIdle = () => {
+      if (!getSessionToken() || !navigator.onLine) return;
+      // Do not lose local changes made during an active sync. Wait for that
+      // pass to finish, then run one follow-up pass with the fresh local state.
+      if (isAccountSyncInProgress()) {
+        timer = setTimeout(runWhenIdle, 900);
+        return;
+      }
+      void syncAccountData()
+        .then(result => setSyncMessage(String(result.courses) + " دوره، " + String(result.chats) +
+          " گفتگو، " + String(result.exams) + " آزمون و " + String(result.games) + " بازی همگام شد."))
+        .catch(() => { /* manual sync remains available */ });
     };
-    window.addEventListener("ai-academy-data-change", changed);
-    return () => { window.removeEventListener("ai-academy-data-change", changed); if (timer) clearTimeout(timer); };
+    const changed = () => {
+      if (!getSessionToken() || !navigator.onLine) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(runWhenIdle, 1800);
+    };
+    window.addEventListener("ai-academy-local-change", changed);
+    return () => {
+      window.removeEventListener("ai-academy-local-change", changed);
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   // Validate the saved session before syncing; retain local data if the network is unavailable.

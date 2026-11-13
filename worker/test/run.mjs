@@ -315,16 +315,18 @@ await putUserCourse(fakeDb, "user_1234567890123456", "course-1", {
   id: "course-1", updatedAt: Date.now() + 86_400_000, title: "stale fast-clock copy"
 }, Date.now());
 t("D1 course upsert cannot remove or bypass a permanent deletion marker",
-  dbCalls.length === 1 && /NOT EXISTS \(SELECT 1 FROM user_tombstones/.test(dbCalls[0].sql) &&
-  dbCalls[0].values[0] === "user_1234567890123456" &&
+  dbCalls.length === 1 && dbCalls[0].sql.includes("SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS") &&
+  (dbCalls[0].sql.match(/NOT EXISTS \(SELECT 1 FROM user_tombstones/g) ?? []).length === 2 &&
+  dbCalls[0].values.length === 9 && dbCalls[0].values[0] === "user_1234567890123456" &&
   !dbCalls.some(call => call.sql.includes("DELETE FROM user_tombstones")));
 dbCalls.length = 0;
 await putUserChat(fakeDb, "user_1234567890123456", "thread-1", {
   id: "thread-1", updatedAt: Date.now() + 86_400_000, messages: []
 }, Date.now());
 t("D1 chat upsert cannot remove or bypass a permanent deletion marker",
-  dbCalls.length === 1 && /NOT EXISTS \(SELECT 1 FROM user_tombstones/.test(dbCalls[0].sql) &&
-  dbCalls[0].values[0] === "user_1234567890123456" &&
+  dbCalls.length === 1 && dbCalls[0].sql.includes("SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS") &&
+  (dbCalls[0].sql.match(/NOT EXISTS \(SELECT 1 FROM user_tombstones/g) ?? []).length === 2 &&
+  dbCalls[0].values.length === 9 && dbCalls[0].values[0] === "user_1234567890123456" &&
   !dbCalls.some(call => call.sql.includes("DELETE FROM user_tombstones")));
 dbCalls.length = 0;
 let invalidTombstoneTime = false;

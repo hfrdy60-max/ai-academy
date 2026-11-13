@@ -131,6 +131,7 @@ export async function importData(text: string): Promise<{ courses: number; chats
   }
   if (profile) window.dispatchEvent(new Event("ai-academy-profile-change"));
   window.dispatchEvent(new Event("ai-academy-data-change"));
+  window.dispatchEvent(new Event("ai-academy-local-change"));
   return { courses: courses.length, chats: chats.length, exams: mergedExams.length, games: mergedGames.length };
 }
 

@@ -44,7 +44,7 @@ async function send(method: "GET" | "POST", path: string, workerUrl: string, bod
   try {
     res = await fetch(workerUrl + path, {
       method, signal: ctrl.signal,
-      headers: { ...(getSessionToken() ? { Authorization: "Bearer " + getSessionToken() } : accessToken ? { "X-Access-Token": accessToken } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },
+      headers: { ...(getSessionToken() ? { Authorization: "Bearer " + getSessionToken() } : accessToken ? { "X-Access-Token": accessToken } : {}), ...(body ? { "Content-Type": "application/json" } : {}), ...(accessToken.startsWith("sk-or-v1-") ? { "X-User-OpenRouter-Key": accessToken } : {}) },
       body: body ? JSON.stringify(body) : undefined
     });
   } catch (e) {
@@ -64,7 +64,8 @@ async function call<T>(task: string, body: unknown, timeoutMs = 75_000): Promise
   const s = await getAiSettings();
   if (!s.workerUrl || (!getSessionToken() && !s.accessToken)) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
   const url = normalizeWorkerUrl(s.workerUrl);
-  const json = await send("POST", `/api/ai/${task}`, url, body, timeoutMs, s.accessToken);
+  const credential = s.openRouterApiKey || s.accessToken;
+  const json = await send("POST", `/api/ai/${task}`, url, body, timeoutMs, credential);
   void addUsage(json.meta?.usage?.total ?? 0).catch(() => {});
   return { data: json.data as T, model: typeof json.meta?.model === "string" ? json.meta.model : "" };
 }

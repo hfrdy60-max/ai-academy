@@ -16,6 +16,8 @@ export default function Settings() {
   const [profileMsg, setProfileMsg] = useState<Msg>(null);
   const [url, setUrl] = useState("");
   const [accessToken, setAccessToken] = useState("");
+  const [personalKey, setPersonalKey] = useState("");
+  const [showPersonalKey, setShowPersonalKey] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [aiMsg, setAiMsg] = useState<Msg>(null);
   const [testing, setTesting] = useState(false);
@@ -29,7 +31,7 @@ export default function Settings() {
     void (async () => {
       try {
         const [p, a, u] = await Promise.all([getProfile(), getAiSettings(), getUsage()]);
-        setName(p.displayName); setGoal(String(p.dailyGoal)); setUrl(a.workerUrl); setAccessToken(a.accessToken); setUsage(u);
+        setName(p.displayName); setGoal(String(p.dailyGoal)); setUrl(a.workerUrl); setAccessToken(a.accessToken); setPersonalKey(a.openRouterApiKey); setUsage(u);
       } catch (e) { setDataMsg({ ok: false, text: errMsg(e) }); }
       finally { setReady(true); }
     })();
@@ -50,7 +52,7 @@ export default function Settings() {
 
   async function onSaveAi(e: { preventDefault: () => void }) {
     e.preventDefault();
-    try { const s = await saveAiSettings({ workerUrl: url, accessToken }); setUrl(s.workerUrl); setAccessToken(s.accessToken); setAiMsg({ ok: true, text: "تنظیمات اتصال ذخیره شد." }); }
+    try { const s = await saveAiSettings({ workerUrl: url, accessToken, openRouterApiKey: personalKey }); setUrl(s.workerUrl); setAccessToken(s.accessToken); setPersonalKey(s.openRouterApiKey); setAiMsg({ ok: true, text: "تنظیمات اتصال ذخیره شد." }); }
     catch (err) { setAiMsg({ ok: false, text: errMsg(err) }); }
   }
 
@@ -88,7 +90,7 @@ export default function Settings() {
 
   async function onWipe() {
     setConfirmWipe(false);
-    try { await deleteAllData(); setName(""); setGoal("1"); setUrl(""); setAccessToken(""); setUsage(0); setDataMsg({ ok: true, text: "همه داده‌های این برنامه از این دستگاه پاک شد." }); }
+    try { await deleteAllData(); setName(""); setGoal("1"); setUrl(""); setAccessToken(""); setPersonalKey(""); setUsage(0); setDataMsg({ ok: true, text: "همه داده‌های این برنامه از این دستگاه پاک شد." }); }
     catch (err) { setDataMsg({ ok: false, text: errMsg(err) }); }
   }
 
@@ -109,6 +111,8 @@ export default function Settings() {
 
       <form onSubmit={e => void onSaveAi(e)} className="card space-y-4" aria-labelledby="s-ai">
         <h2 id="s-ai" className="font-bold">اتصال هوش مصنوعی</h2>
+        <p className="muted text-sm leading-7">برای محاسبه هزینه از حساب API خودتان، کلید شخصی OpenRouter را وارد کنید. کلید فقط روی همین دستگاه ذخیره می‌شود و با حساب ابری یا فایل پشتیبان همگام‌سازی نمی‌شود. اگر خالی باشد، سرور از کلید مرکزی خود استفاده می‌کند (در صورت تنظیم بودن).</p>
+        <div><label htmlFor="a-personal-key" className="mb-1 block text-sm font-bold">کلید API شخصی OpenRouter</label><div className="flex gap-2"><input id="a-personal-key" className="input min-w-0 flex-1 text-left" dir="ltr" autoComplete="off" type={showPersonalKey ? "text" : "password"} value={personalKey} onChange={e => setPersonalKey(e.target.value)} placeholder="sk-or-v1-..." /><button type="button" className="btn btn-ghost shrink-0" onClick={() => setShowPersonalKey(v => !v)}>{showPersonalKey ? "پنهان" : "نمایش"}</button></div><p className="muted mt-1 text-xs">کلید از طریق HTTPS فقط برای درخواست AI به Worker فرستاده می‌شود و روی سرور ذخیره نمی‌شود. آن را با دیگران به اشتراک نگذارید.</p></div>
         <p className="muted text-sm leading-7">درخواست‌های هوش مصنوعی با نشست امن حساب کاربری شما احراز هویت می‌شوند. کلید OpenRouter فقط روی سرور (Worker) نگهداری می‌شود و هرگز به مرورگر نمی‌آید.</p>
         <div><label htmlFor="a-url" className="mb-1 block text-sm font-bold">آدرس Worker</label>
           <input id="a-url" className="input text-left" dir="ltr" inputMode="url" autoComplete="off" placeholder="https://ai-academy-api.xxx.workers.dev" value={url} onChange={e => setUrl(e.target.value)} /></div>

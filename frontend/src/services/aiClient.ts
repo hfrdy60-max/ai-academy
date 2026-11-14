@@ -97,7 +97,7 @@ export const checkAnswer = (p: { lessonTitle: string; level: Level; question: st
 export async function testConnection(workerUrl: string): Promise<{ aiConfigured: boolean }> {
   const url = normalizeWorkerUrl(workerUrl);
   const s = await getAiSettings();
-  if (!url || (!getSessionToken() && !s.accessToken)) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
-  const json = await send("GET", "/api/status", url, undefined, 15_000, s.accessToken);
+  if (!url || (!getSessionToken() && !s.accessToken && !s.openRouterApiKey)) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
+  const json = await send("GET", "/api/status", url, undefined, 15_000, s.openRouterApiKey || s.accessToken);
   return { aiConfigured: !!json.aiConfigured };
 }

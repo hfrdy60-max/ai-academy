@@ -62,7 +62,7 @@ async function send(method: "GET" | "POST", path: string, workerUrl: string, bod
 
 async function call<T>(task: string, body: unknown, timeoutMs = 75_000): Promise<{ data: T; model: string }> {
   const s = await getAiSettings();
-  if (!s.workerUrl || (!getSessionToken() && !s.accessToken)) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
+  if (!s.workerUrl || (!getSessionToken() && !s.accessToken && !s.openRouterApiKey)) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
   const url = normalizeWorkerUrl(s.workerUrl);
   const credential = s.openRouterApiKey || s.accessToken;
   const json = await send("POST", `/api/ai/${task}`, url, body, timeoutMs, credential);

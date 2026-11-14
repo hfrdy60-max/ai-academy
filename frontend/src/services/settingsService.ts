@@ -80,13 +80,15 @@ const envUrl = (): string => {
 
 export async function getAiSettings(): Promise<AiSettings> {
   const s = await getSetting<Partial<AiSettings>>(KEY.ai);
-  return { workerUrl: s?.workerUrl || envUrl(), accessToken: s?.accessToken ?? "" };
+  return { workerUrl: s?.workerUrl || envUrl(), accessToken: s?.accessToken ?? "", openRouterApiKey: s?.openRouterApiKey ?? "" };
 }
 
 export async function saveAiSettings(s: AiSettings): Promise<AiSettings> {
   const token = s.accessToken.trim();
   if (token.length > 200) throw new Error("توکن دسترسی خیلی طولانی است.");
-  const clean: AiSettings = { workerUrl: normalizeWorkerUrl(s.workerUrl), accessToken: token };
+  const personalKey = (s.openRouterApiKey ?? "").trim();
+  if (personalKey.length > 300 || (personalKey && !/^sk-or-v1-[a-f0-9]{20,}$/i.test(personalKey))) throw new Error("کلید OpenRouter معتبر نیست.");
+  const clean: AiSettings = { workerUrl: normalizeWorkerUrl(s.workerUrl), accessToken: token, openRouterApiKey: personalKey };
   await setSetting(KEY.ai, clean);
   return clean;
 }

@@ -172,9 +172,13 @@ export default {
 
       const m = /^\/api\/ai\/([a-z]+)$/.exec(url.pathname);
       if (m && request.method === "POST" && (TASKS as readonly string[]).includes(m[1])) {
-        if (!env.OPENROUTER_API_KEY) throw new HttpError(503, "ai_not_configured");
+        const personalKey = request.headers.get("X-User-OpenRouter-Key")?.trim() ?? "";
+        if (personalKey && (!/^sk-or-v1-[a-f0-9]{20,}$/i.test(personalKey) || personalKey.length > 300)) throw new HttpError(400, "invalid_user_api_key");
+        const selectedKey = personalKey || env.OPENROUTER_API_KEY;
+        if (!selectedKey) throw new HttpError(503, "ai_not_configured");
         const body = await readJsonBody(request, MAX_BODY_BYTES);
-        return json({ ok: true, ...(await runTask(m[1] as Task, body, env)) }, 200, headers);
+        // Request-scoped copy: never persist or log personal credentials.
+        return json({ ok: true, ...(await runTask(m[1] as Task, body, { ...env, OPENROUTER_API_KEY: selectedKey })) }, 200, headers);
       }
       throw new HttpError(404, "not_found");
     } catch (e) {

@@ -168,7 +168,11 @@ export default {
         if (!(await tokenMatches(request.headers.get("X-Access-Token"), env.ACCESS_TOKEN))) throw new HttpError(401, "unauthorized");
       }
 
-      if (url.pathname === "/api/status" && request.method === "GET") return json({ ok: true, aiConfigured: !!env.OPENROUTER_API_KEY }, 200, headers);
+      if (url.pathname === "/api/status" && request.method === "GET") {
+        const personalKey = request.headers.get("X-User-OpenRouter-Key")?.trim() ?? "";
+        const personalKeyShapeValid = /^sk-or-v1-[a-f0-9]{20,}$/i.test(personalKey) && personalKey.length <= 300;
+        return json({ ok: true, aiConfigured: !!env.OPENROUTER_API_KEY || personalKeyShapeValid }, 200, headers);
+      }
 
       const m = /^\/api\/ai\/([a-z]+)$/.exec(url.pathname);
       if (m && request.method === "POST" && (TASKS as readonly string[]).includes(m[1])) {

@@ -36,7 +36,7 @@ const MESSAGES: Record<string, string> = {
 export const aiErrorText = (code: string): string =>
   MESSAGES[code] ?? (code.startsWith("invalid_") || code.startsWith("too_long_") ? "اطلاعات ارسالی معتبر نیست؛ طول یا قالب متن‌ها را بررسی کنید." : "خطای ناشناخته از سرور.");
 
-async function send(method: "GET" | "POST", path: string, workerUrl: string, body?: unknown, timeoutMs = 75_000, accessToken = ""): Promise<any> {
+async function send(method: "GET" | "POST", path: string, workerUrl: string, body?: unknown, timeoutMs = 75_000, accessToken = "", personalApiKey = ""): Promise<any> {
   if (typeof navigator !== "undefined" && navigator.onLine === false) throw new AiError("offline", MESSAGES.offline);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -44,7 +44,7 @@ async function send(method: "GET" | "POST", path: string, workerUrl: string, bod
   try {
     res = await fetch(workerUrl + path, {
       method, signal: ctrl.signal,
-      headers: { ...(getSessionToken() ? { Authorization: "Bearer " + getSessionToken() } : accessToken ? { "X-Access-Token": accessToken } : {}), ...(body ? { "Content-Type": "application/json" } : {}), ...(accessToken.startsWith("sk-or-v1-") ? { "X-User-OpenRouter-Key": accessToken } : {}) },
+      headers: { ...(getSessionToken() ? { Authorization: "Bearer " + getSessionToken() } : accessToken ? { "X-Access-Token": accessToken } : {}), ...(body ? { "Content-Type": "application/json" } : {}), ...(personalApiKey ? { "X-User-OpenRouter-Key": personalApiKey } : {}) },
       body: body ? JSON.stringify(body) : undefined
     });
   } catch (e) {
@@ -62,10 +62,9 @@ async function send(method: "GET" | "POST", path: string, workerUrl: string, bod
 
 async function call<T>(task: string, body: unknown, timeoutMs = 75_000): Promise<{ data: T; model: string }> {
   const s = await getAiSettings();
-  if (!s.workerUrl || (!getSessionToken() && !s.accessToken && !s.openRouterApiKey)) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
+  if (!s.workerUrl || (!getSessionToken() && !s.accessToken)) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
   const url = normalizeWorkerUrl(s.workerUrl);
-  const credential = s.openRouterApiKey || s.accessToken;
-  const json = await send("POST", `/api/ai/${task}`, url, body, timeoutMs, credential);
+  const json = await send("POST", `/api/ai/${task}`, url, body, timeoutMs, s.accessToken, s.openRouterApiKey);
   void addUsage(json.meta?.usage?.total ?? 0).catch(() => {});
   return { data: json.data as T, model: typeof json.meta?.model === "string" ? json.meta.model : "" };
 }
@@ -97,7 +96,7 @@ export const checkAnswer = (p: { lessonTitle: string; level: Level; question: st
 export async function testConnection(workerUrl: string): Promise<{ aiConfigured: boolean }> {
   const url = normalizeWorkerUrl(workerUrl);
   const s = await getAiSettings();
-  if (!url || (!getSessionToken() && !s.accessToken && !s.openRouterApiKey)) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
-  const json = await send("GET", "/api/status", url, undefined, 15_000, s.openRouterApiKey || s.accessToken);
+  if (!url || (!getSessionToken() && !s.accessToken)) throw new AiError("not_configured_client", MESSAGES.not_configured_client);
+  const json = await send("GET", "/api/status", url, undefined, 15_000, s.accessToken, s.openRouterApiKey);
   return { aiConfigured: !!json.aiConfigured };
 }

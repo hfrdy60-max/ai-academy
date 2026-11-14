@@ -26,7 +26,7 @@ function cors(origin: string | null, env: Env): Record<string, string> {
   if (origin && origin === env.ALLOWED_ORIGIN) { // exact match only, never a wildcard
     return {
       "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-Access-Token, Authorization", "Access-Control-Max-Age": "600", Vary: "Origin"
+      "Access-Control-Allow-Headers": "Content-Type, X-Access-Token, Authorization, X-User-OpenRouter-Key", "Access-Control-Max-Age": "600", Vary: "Origin"
     };
   }
   return { Vary: "Origin" };

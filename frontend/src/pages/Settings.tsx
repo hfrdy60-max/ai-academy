@@ -60,8 +60,8 @@ export default function Settings() {
     setTesting(true); setAiMsg(null);
     try {
       const r = await testConnection(url);
-      setAiMsg(r.aiConfigured ? { ok: true, text: "اتصال برقرار است و کلید هوش مصنوعی روی سرور تنظیم شده است." }
-        : { ok: false, text: "اتصال حساب برقرار است، اما کلید OpenRouter هنوز روی سرور (Worker) تنظیم نشده است." });
+      setAiMsg(r.aiConfigured ? { ok: true, text: "اتصال برقرار است؛ کلید شخصی یا کلید مرکزی برای درخواست هوش مصنوعی انتخاب شده است." }
+        : { ok: false, text: "اتصال حساب برقرار است، اما کلید API شخصی یا کلید مرکزی تنظیم نشده است." });
     } catch (err) { setAiMsg({ ok: false, text: err instanceof AiError ? err.message : errMsg(err) }); }
     finally { setTesting(false); }
   }
@@ -113,7 +113,7 @@ export default function Settings() {
         <h2 id="s-ai" className="font-bold">اتصال هوش مصنوعی</h2>
         <p className="muted text-sm leading-7">برای محاسبه هزینه از حساب API خودتان، کلید شخصی OpenRouter را وارد کنید. کلید فقط روی همین دستگاه ذخیره می‌شود و با حساب ابری یا فایل پشتیبان همگام‌سازی نمی‌شود. اگر خالی باشد، سرور از کلید مرکزی خود استفاده می‌کند (در صورت تنظیم بودن).</p>
         <div><label htmlFor="a-personal-key" className="mb-1 block text-sm font-bold">کلید API شخصی OpenRouter</label><div className="flex gap-2"><input id="a-personal-key" className="input min-w-0 flex-1 text-left" dir="ltr" autoComplete="off" type={showPersonalKey ? "text" : "password"} value={personalKey} onChange={e => setPersonalKey(e.target.value)} placeholder="sk-or-v1-..." /><button type="button" className="btn btn-ghost shrink-0" onClick={() => setShowPersonalKey(v => !v)}>{showPersonalKey ? "پنهان" : "نمایش"}</button></div><p className="muted mt-1 text-xs">کلید از طریق HTTPS فقط برای درخواست AI به Worker فرستاده می‌شود و روی سرور ذخیره نمی‌شود. آن را با دیگران به اشتراک نگذارید.</p></div>
-        <p className="muted text-sm leading-7">درخواست‌های هوش مصنوعی با نشست امن حساب کاربری شما احراز هویت می‌شوند. کلید OpenRouter فقط روی سرور (Worker) نگهداری می‌شود و هرگز به مرورگر نمی‌آید.</p>
+        <p className="muted text-sm leading-7">نشست حساب کاربری برای دسترسی به اطلاعات شما استفاده می‌شود. در حالت کلید شخصی، کلید API از این دستگاه فقط برای درخواست هوش مصنوعی به Worker فرستاده می‌شود؛ در حالت مرکزی، کلید روی سرور می‌ماند.</p>
         <div><label htmlFor="a-url" className="mb-1 block text-sm font-bold">آدرس Worker</label>
           <input id="a-url" className="input text-left" dir="ltr" inputMode="url" autoComplete="off" placeholder="https://ai-academy-api.xxx.workers.dev" value={url} onChange={e => setUrl(e.target.value)} /></div>
         <div><label htmlFor="a-token" className="mb-1 block text-sm font-bold">رمز دسترسی Worker</label><div className="flex gap-2"><input id="a-token" className="input min-w-0 flex-1 text-left" dir="ltr" autoComplete="off" type={showToken ? "text" : "password"} value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="رمز دسترسی تنظیم‌شده روی Worker" /><button type="button" className="btn btn-ghost shrink-0" onClick={() => setShowToken(v => !v)} aria-label={showToken ? "پنهان کردن رمز" : "نمایش رمز"}>{showToken ? "پنهان" : "نمایش"}</button></div><p className="muted mt-1 text-xs">این رمز در حافظه امن محلی همین دستگاه نگهداری می‌شود. اگر از ورود حساب استفاده می‌کنید، این قسمت لازم نیست.</p></div>

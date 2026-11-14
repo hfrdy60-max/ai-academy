@@ -45,7 +45,7 @@ export default function CreateCourse() {
 
   // If the AI connection is already set up, suggest AI-generated structure by default.
   useEffect(() => {
-    getAiSettings().then(s => { if (!touched.current && s.workerUrl && s.accessToken) setStructure("ai"); }).catch(() => {});
+    getAiSettings().then(s => { if (!touched.current && s.workerUrl && (s.accessToken || s.openRouterApiKey)) setStructure("ai"); }).catch(() => {});
   }, []);
 
   async function submit(e: { preventDefault: () => void }) {

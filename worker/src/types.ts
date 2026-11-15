@@ -12,6 +12,7 @@ export interface Env {
   RATE_LIMIT_PER_MINUTE?: string;
   AUTH_RATE_LIMIT_PER_MINUTE?: string;
   UPSTREAM_TIMEOUT_MS?: string;
+  UPSTREAM_MAX_ATTEMPTS?: string;
   UPSTREAM_RETRY_BASE_MS?: string;
   RESEND_API_KEY?: string;         // Secret: transactional email delivery.
   EMAIL_FROM?: string;             // Verified sender, e.g. AI Academy <login@example.com>.

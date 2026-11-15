@@ -37,14 +37,23 @@ function json(data: unknown, status: number, extra: Record<string, string>): Res
 }
 
 async function runTask(task: Task, body: unknown, env: Env) {
-  const provider = getProvider(env);
   const model = modelFor(env, task);
+  const isAdvancedLesson = task === "lesson" && !!body && typeof body === "object" &&
+    (body as Record<string, unknown>).course !== null &&
+    typeof (body as Record<string, unknown>).course === "object" &&
+    ((body as { course: { level?: unknown } }).course.level === "advanced");
+  // Advanced lessons need more generation time for their full curriculum depth.
+  // Keep one upstream attempt so the initial draft + one repair fit the browser timeout.
+  const requestEnv: Env = isAdvancedLesson
+    ? { ...env, UPSTREAM_TIMEOUT_MS: "75000", UPSTREAM_MAX_ATTEMPTS: "1" }
+    : env;
+  const provider = getProvider(requestEnv);
   const s = task === "lesson"
     ? (() => {
         const bodyObj = body && typeof body === "object" ? body as Record<string, unknown> : {};
         const courseObj = bodyObj.course && typeof bodyObj.course === "object" ? bodyObj.course as Record<string, unknown> : {};
         const courseLevel = courseObj.level;
-        return { maxTokens: courseLevel === "advanced" ? 15000 : courseLevel === "intermediate" ? 10000 : 6500, temperature: SETTINGS.lesson.temperature };
+        return { maxTokens: courseLevel === "advanced" ? 16000 : courseLevel === "intermediate" ? 10000 : 6500, temperature: SETTINGS.lesson.temperature };
       })()
     : SETTINGS[task];
   let messages;

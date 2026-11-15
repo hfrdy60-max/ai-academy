@@ -15,7 +15,9 @@ function baseUrl(env: Env): string {
 export function createOpenRouter(env: Env): AiProvider {
   const timeoutMs = Number(env.UPSTREAM_TIMEOUT_MS) || 50_000;
   const retryBase = env.UPSTREAM_RETRY_BASE_MS !== undefined ? Number(env.UPSTREAM_RETRY_BASE_MS) : 400;
-  const maxAttempts = 3;
+  const configuredAttempts = Number(env.UPSTREAM_MAX_ATTEMPTS);
+  const maxAttempts = Number.isInteger(configuredAttempts) && configuredAttempts >= 1 && configuredAttempts <= 3
+    ? configuredAttempts : 3;
 
   return {
     async complete(opts: CompleteOptions): Promise<CompletionResult> {

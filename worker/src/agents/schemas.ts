@@ -28,13 +28,14 @@ const list = (v: unknown, maxItems: number, maxLen: number): string[] =>
   Array.isArray(v) ? v.map(x => text(x, maxLen)).filter(Boolean).slice(0, maxItems) : [];
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
-export function validateOutline(raw: unknown, level: "beginner" | "intermediate" | "advanced" = "beginner"): Outline {
+export function validateOutline(raw: unknown, level: "beginner" | "intermediate" | "advanced" = "beginner", chapterCount?: number): Outline {
   const expected = {
     beginner: { chapters: 5, lessons: 25 },
     intermediate: { chapters: 10, lessons: 50 },
     advanced: { chapters: 20, lessons: 100 }
   }[level];
-  if (!isObj(raw) || !Array.isArray(raw.chapters) || raw.chapters.length !== expected.chapters) {
+  const expectedChapters = chapterCount ?? expected.chapters;
+  if (!Number.isInteger(expectedChapters) || expectedChapters < 1 || expectedChapters > expected.chapters || !isObj(raw) || !Array.isArray(raw.chapters) || raw.chapters.length !== expectedChapters) {
     throw new HttpError(502, "ai_outline_incomplete");
   }
   const normalizeTitle = (value: string) => value
@@ -62,7 +63,7 @@ export function validateOutline(raw: unknown, level: "beginner" | "intermediate"
     return { title, lessons };
   });
   const totalLessons = chapters.reduce((sum, chapter) => sum + chapter.lessons.length, 0);
-  if (totalLessons !== expected.lessons) throw new HttpError(502, "ai_outline_incomplete");
+  if (totalLessons !== expectedChapters * 5) throw new HttpError(502, "ai_outline_incomplete");
   return { chapters };
 }
 

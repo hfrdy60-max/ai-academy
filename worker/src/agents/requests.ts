@@ -19,7 +19,20 @@ function course(v: unknown): CourseCtx {
   };
 }
 
-export const parseOutline = (b: unknown) => ({ course: course(obj(b, "body").course) });
+export interface OutlineRange { start: number; count: number }
+
+export const parseOutline = (b: unknown) => {
+  const o = obj(b, "body");
+  const parsedCourse = course(o.course);
+  if (o.range === undefined) return { course: parsedCourse, range: undefined as OutlineRange | undefined };
+  const r = obj(o.range, "range");
+  const start = Number(r.start), count = Number(r.count);
+  const total = parsedCourse.level === "advanced" ? 20 : parsedCourse.level === "intermediate" ? 10 : 5;
+  if (!Number.isInteger(start) || !Number.isInteger(count) || start < 1 || count < 1 || count > 2 || start + count - 1 > total) {
+    throw new HttpError(400, "invalid_outline_range");
+  }
+  return { course: parsedCourse, range: { start, count } as OutlineRange };
+};
 
 export function parseLesson(b: unknown) {
   const o = obj(b, "body");

@@ -67,8 +67,15 @@ export function validateOutline(raw: unknown, level: "beginner" | "intermediate"
   return { chapters };
 }
 
-export function validateLesson(raw: unknown, level: "beginner" | "intermediate" | "advanced" = "beginner"): LessonContent {
-  if (!isObj(raw)) throw bad();
+const LESSON_QUALITY = {
+  // Keep a meaningful quality floor without rejecting useful lessons because one
+  // generated section is slightly shorter than a model-specific target.
+  beginner: { explanation: 1800, intro: 50, summary: 70, objectives: 3, examples: 2, notes: 1, exercises: 2, quiz: 3 },
+  intermediate: { explanation: 3200, intro: 70, summary: 100, objectives: 3, examples: 2, notes: 2, exercises: 2, quiz: 3 },
+  advanced: { explanation: 6000, intro: 100, summary: 150, objectives: 4, examples: 2, notes: 2, exercises: 3, quiz: 4 }
+} as const;
+
+function normalizeLesson(raw: Record<string, unknown>): LessonContent {
   const exercises = (Array.isArray(raw.exercises) ? raw.exercises : []).slice(0, 6).map(e => isObj(e)
     ? { question: text(e.question, 1600), hint: text(e.hint, 1000), sampleAnswer: text(e.sampleAnswer, 5000) } : null)
     .filter((e): e is Exercise => !!e && !!e.question && !!e.sampleAnswer);
@@ -79,27 +86,40 @@ export function validateLesson(raw: unknown, level: "beginner" | "intermediate" 
     if (!Array.isArray(q.options) || q.options.length !== 4 || options.length !== 4 || !Number.isInteger(idx) || idx < 0 || idx >= options.length) return null;
     return { question: text(q.question, 900), options, correctIndex: idx, explanation: text(q.explanation, 1400) };
   }).filter((q): q is QuizItem => !!q && !!q.question && !!q.explanation);
-  const lesson: LessonContent = {
+
+  return {
     intro: text(raw.intro, 5000), objectives: list(raw.objectives, 8, 500), explanation: text(raw.explanation, 50000),
     examples: list(raw.examples, 6, 3500), notes: list(raw.notes, 8, 1200), exercises, quiz, summary: text(raw.summary, 3000)
   };
+}
+
+function qualityIssuesForLesson(lesson: LessonContent, level: "beginner" | "intermediate" | "advanced"): string[] {
+  const q = LESSON_QUALITY[level];
+  const issues: string[] = [];
+  if (lesson.explanation.length < q.explanation) issues.push(`توضیح اصلی ${lesson.explanation.length} حرف است و حداقل ${q.explanation} حرف لازم دارد`);
+  if (lesson.intro.length < q.intro) issues.push("مقدمه کوتاه یا خالی است");
+  if (lesson.summary.length < q.summary) issues.push("جمع‌بندی کوتاه یا خالی است");
+  if (lesson.objectives.length < q.objectives) issues.push(`تعداد هدف‌ها ${lesson.objectives.length} است؛ حداقل ${q.objectives} هدف لازم است`);
+  if (lesson.examples.length < q.examples) issues.push(`تعداد مثال‌ها ${lesson.examples.length} است؛ حداقل ${q.examples} مثال لازم است`);
+  if (lesson.notes.length < q.notes) issues.push(`تعداد نکته‌ها ${lesson.notes.length} است؛ حداقل ${q.notes} نکته لازم است`);
+  if (lesson.exercises.length < q.exercises) issues.push(`تعداد تمرین‌ها ${lesson.exercises.length} است؛ حداقل ${q.exercises} تمرین لازم است`);
+  if (lesson.quiz.length < q.quiz) issues.push(`تعداد پرسش‌های آزمون ${lesson.quiz.length} است؛ حداقل ${q.quiz} پرسش لازم است`);
+  return issues;
+}
+
+/** Describes the exact missing quality elements so a repair request can target them. */
+export function lessonQualityIssues(raw: unknown, level: "beginner" | "intermediate" | "advanced" = "beginner"): string[] {
+  if (!isObj(raw)) return ["خروجی باید یک شیء JSON معتبر باشد"];
+  return qualityIssuesForLesson(normalizeLesson(raw), level);
+}
+
+export function validateLesson(raw: unknown, level: "beginner" | "intermediate" | "advanced" = "beginner"): LessonContent {
+  if (!isObj(raw)) throw bad();
+  const lesson = normalizeLesson(raw);
   if (!lesson.explanation || lesson.objectives.length === 0) throw bad();
-  const quality = {
-    beginner: { explanation: 2500, intro: 70, summary: 100, objectives: 3, examples: 2, notes: 2, exercises: 2, quiz: 3 },
-    intermediate: { explanation: 4500, intro: 90, summary: 150, objectives: 3, examples: 2, notes: 2, exercises: 3, quiz: 4 },
-    advanced: { explanation: 8000, intro: 120, summary: 200, objectives: 4, examples: 2, notes: 3, exercises: 3, quiz: 5 }
-  }[level];
-  // Do not silently present a thin, abbreviated or poorly structured answer as a complete lesson.
-  if (
-    lesson.explanation.length < quality.explanation ||
-    lesson.intro.length < quality.intro ||
-    lesson.summary.length < quality.summary ||
-    lesson.objectives.length < quality.objectives ||
-    lesson.examples.length < quality.examples ||
-    lesson.notes.length < quality.notes ||
-    lesson.exercises.length < quality.exercises ||
-    lesson.quiz.length < quality.quiz
-  ) {
+  // Reject genuinely incomplete lessons, but avoid an overly high threshold
+  // that discards a useful response from a smaller or less consistent model.
+  if (qualityIssuesForLesson(lesson, level).length > 0) {
     throw new HttpError(502, "ai_content_too_short");
   }
   return lesson;

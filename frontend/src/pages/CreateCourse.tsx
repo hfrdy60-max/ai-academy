@@ -126,7 +126,7 @@ export default function CreateCourse() {
           <select id="c-level" className="input" value={level} onChange={e => setLevel(e.target.value as Level)}>
             {LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
           </select>
-          <p className="muted mt-1 text-xs">ساختار خودکار این سطح: {fa(curriculumSize.chapters)} فصل و {fa(curriculumSize.lessons)} درس؛ هر فصل دقیقاً ۵ درس دارد.</p>
+          <p className="muted mt-1 text-xs">{level === "advanced" ? "سطح پیشرفته در دو بخش ۱۰ فصلی (مجموعاً ۲۰ فصل و ۱۰۰ درس) نمایش داده می‌شود؛ هر فصل دقیقاً ۵ درس دارد." : `ساختار خودکار این سطح: ${fa(curriculumSize.chapters)} فصل و ${fa(curriculumSize.lessons)} درس؛ هر فصل دقیقاً ۵ درس دارد.`}</p>
         </div>
         <div>
           <label htmlFor="c-goal" className="mb-1 block text-sm font-bold">هدف یادگیری</label>

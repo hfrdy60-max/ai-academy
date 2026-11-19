@@ -9,7 +9,7 @@ import { handleAccountRoute } from "./account/routes";
 import { getProvider, modelFor } from "./providers";
 import { parseChat, parseCheck, parseLesson, parseOutline } from "./agents/requests";
 import { chatMessages, checkMessages, lessonMessages, outlineMessages } from "./agents/prompts";
-import { extractJson, validateChatReply, validateCheck, validateLesson, validateOutline } from "./agents/schemas";
+import { extractJson, lessonQualityIssues, validateChatReply, validateCheck, validateLesson, validateOutline } from "./agents/schemas";
 
 const MAX_BODY_BYTES = 128 * 1024;
 const TASKS: readonly Task[] = ["outline", "lesson", "chat", "check"];
@@ -60,6 +60,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
     : SETTINGS[task];
   let messages;
   let finish: (t: string) => unknown;
+  let lessonRepairHint: (draft: string) => string = () => "خروجی قبلی ناقص بود؛ همه فیلدهای لازم را کامل کن.";
   if (task === "outline") {
     const { course, range } = outlineRequest!;
     const total = course.level === "advanced" ? 20 : course.level === "intermediate" ? 10 : 5;
@@ -69,7 +70,18 @@ async function runTask(task: Task, body: unknown, env: Env) {
   }
   else if (task === "lesson") {
     const r = parseLesson(body);
-    messages = lessonMessages(r.course, r.chapterTitle, r.lessonTitle, r.instruction, r.progression); finish = t => validateLesson(extractJson(t), r.course.level);
+    messages = lessonMessages(r.course, r.chapterTitle, r.lessonTitle, r.instruction, r.progression);
+    finish = t => validateLesson(extractJson(t), r.course.level);
+    lessonRepairHint = draft => {
+      try {
+        const issues = lessonQualityIssues(extractJson(draft), r.course.level);
+        return issues.length
+          ? `کمبودهای مشخص خروجی قبلی: ${issues.join("؛ ")}. فقط این کمبودها را برطرف کن و بخش‌های درست را حفظ کن.`
+          : "قالب خروجی یا JSON معتبر نبود؛ یک شیء JSON کامل و معتبر بساز.";
+      } catch {
+        return "خروجی قبلی JSON معتبر نبود؛ یک شیء JSON کامل و معتبر بساز.";
+      }
+    };
   } else if (task === "check") {
     const r = parseCheck(body);
     messages = checkMessages(r.level, r.lessonTitle, r.question, r.learnerAnswer, r.sampleAnswer); finish = t => validateCheck(extractJson(t));
@@ -120,7 +132,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
       const repairMessages = [
         ...messages,
         { role: "assistant" as const, content: res.text.slice(0, 26000) },
-        { role: "user" as const, content: "خروجی قبلی ناقص یا کوتاه بود. همین درس را کامل و با عمق آموزشی لازم بازنویسی کن. تمام فیلدهای JSON را پر کن؛ حداقل طول توضیح و تعداد اهداف، مثال‌ها، نکته‌ها، تمرین‌ها و آزمون‌های خواسته‌شده در دستور سیستم را دقیق رعایت کن. فقط JSON معتبر برگردان و متن قبلی را خلاصه نکن." }
+        { role: "user" as const, content: `خروجی قبلی این ایرادها را داشت: ${lessonRepairHint(res.text)} متن درس را دقیقاً برای همین عنوان اصلاح کن. همه فیلدهای JSON را کامل نگه دار، هیچ بخش درستی را حذف یا خلاصه نکن و فقط JSON معتبر برگردان.` }
       ];
       const repaired = await provider.complete({ model, messages: repairMessages, maxTokens: s.maxTokens, temperature: 0.2 });
       if (repaired.finishReason === "length") throw new HttpError(502, "ai_output_truncated");

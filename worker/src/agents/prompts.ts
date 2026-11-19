@@ -87,9 +87,9 @@ SCOPE AND DEPTH:
 - Beginner means accessible, not shallow: explain terms in plain language, use small steps and concrete analogies, and still teach meaningful mechanisms and usable skills.
 - Intermediate: connect theory to practice; explain why methods work, when to choose them, how to interpret evidence, comparisons and common failure patterns.
 - Advanced: teach at professional / upper-undergraduate depth where appropriate: mechanisms, assumptions, derivations or decision logic, system interactions, design alternatives, constraints, failure modes, diagnostics, optimization, edge cases and trade-offs.
-- Beginner lessons: at least 2,500 Persian characters in explanation, normally 6-9 substantial paragraphs; include 3-5 objectives, 2 worked examples, 2-3 notes, 2-3 exercises and 3 quiz questions.
-- Intermediate lessons: at least 4,500 Persian characters in explanation, normally 9-13 substantial paragraphs; include 3-5 objectives, 2-3 worked examples, 2-4 notes, 3 exercises and 4 quiz questions.
-- Advanced lessons: at least 8,000 Persian characters in explanation, normally 12-18 substantial paragraphs; include 4-6 objectives, 2-3 developed examples, 3-5 notes, at least 3 multi-step exercises and 5 reasoning-based quiz questions.
+- Beginner lessons: at least 1,800 Persian characters in explanation, normally 5-8 substantial paragraphs; include 3-5 objectives, 2 worked examples, at least 1 useful note, 2 exercises and 3 quiz questions.
+- Intermediate lessons: at least 3,200 Persian characters in explanation, normally 7-11 substantial paragraphs; include 3-5 objectives, 2 worked examples, 2 useful notes, 2-3 exercises and 3-4 quiz questions.
+- Advanced lessons: at least 6,000 Persian characters in explanation, normally 10-15 substantial paragraphs; include 4-6 objectives, 2 developed examples, at least 2 useful notes, 3 multi-step exercises and 4-5 reasoning-based quiz questions.
 - Length requirements refer to meaningful instruction, not padding. If a topic is inherently narrower, explain its full scope with relevant nuance instead of repeating content.
 - Do not waste the introduction defining the whole subject, explaining generic benefits or repeating the course description. Start with the exact question or problem this lesson solves.
 - Use clear Persian section headings inside explanation, adapted to the exact topic; do not blindly paste the same headings into every lesson.
@@ -111,7 +111,7 @@ LEARNING ACTIVITIES:
 - Do not replace teaching with long bullet lists. Develop the reasoning in connected paragraphs; use tables only when they add clarity.
 - Do not add fabricated sources or pretend to have checked current standards. Clearly flag manufacturer-specific details that require the actual service documentation.
 OUTPUT QUALITY CHECK BEFORE RETURNING:
-1. Verify that the explanation meets the character minimum for the selected level.
+1. Verify that the explanation meets the character minimum for the selected level (beginner 1,800; intermediate 3,200; advanced 6,000 Persian characters).
 2. Verify that the lesson title is the real focus and not a generic subject introduction.
 3. Verify that examples, exercises and quiz questions are specific to this lesson.
 4. Verify that the lesson explicitly builds from known earlier content and bridges to the next topic.

@@ -26,6 +26,7 @@ export default function LessonPage() {
   const [editing, setEditing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [showSettingsLink, setShowSettingsLink] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -35,7 +36,7 @@ export default function LessonPage() {
     if (!courseId || !lessonId) return;
     touchLesson(courseId, lessonId).catch(() => { /* non-critical */ });
   }, [courseId, lessonId]);
-  useEffect(() => { setEditing(false); setGenError(null); setSaveError(null); setChatOpen(false); }, [lessonId]);
+  useEffect(() => { setEditing(false); setGenError(null); setShowSettingsLink(false); setSaveError(null); setChatOpen(false); }, [lessonId]);
 
   if (loading) return <p className="muted" role="status">در حال بارگذاری…</p>;
   if (error) return <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{error}</p>;
@@ -64,14 +65,20 @@ export default function LessonPage() {
 
   async function generate(extra: string) {
     if (!course) return;
-    setGenerating(true); setGenError(null);
+    setGenerating(true); setGenError(null); setShowSettingsLink(false);
     try {
       const r = await generateLesson(
         { title: course.title, subject: course.subject, level: course.level, goal: course.goal, description: course.description },
         chapter.title, lesson.title, extra.trim(), progression);
       setCourse(await setLessonContent(course.id, lesson.id, r.data, "ai", r.model));
       setInstruction("");
-    } catch (e) { setGenError(aiMsg(e)); }
+    } catch (e) {
+      setGenError(aiMsg(e));
+      setShowSettingsLink(e instanceof AiError && [
+        "not_configured_client", "not_configured", "ai_not_configured", "ai_auth_failed",
+        "database_not_configured", "unauthorized", "session_expired"
+      ].includes(e.code));
+    }
     finally { setGenerating(false); }
   }
 
@@ -166,7 +173,13 @@ export default function LessonPage() {
       {genError && (
         <div role="alert" className="card border-red-300 text-sm text-red-800 dark:text-red-200">
           <p>{genError}</p>
-          <Link to="/settings" className="mt-2 inline-block underline">رفتن به تنظیمات</Link>
+          {genError.includes("حداقل کیفیت") && (
+            <p className="mt-2 leading-6">این پیام به کیفیت پاسخ تولیدشده مربوط است، نه لزوماً تنظیمات حساب. می‌توانید دوباره امتحان کنید یا محتوای درس را دستی بنویسید.</p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className="btn btn-ghost" disabled={generating} onClick={() => void generate("")}>تلاش دوباره</button>
+            {showSettingsLink && <Link to="/settings" className="btn btn-ghost">بررسی تنظیمات هوش مصنوعی</Link>}
+          </div>
         </div>
       )}
       {!editing && saveError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{saveError}</p>}

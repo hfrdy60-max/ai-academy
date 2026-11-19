@@ -116,7 +116,7 @@ t("intermediate outline is exactly 50 lessons", r.status === 200 && r.json.data.
 reset(); r = await call("/api/ai/outline", { body: { course: { ...course, level: "advanced" } } });
 t("advanced outline is exactly 100 lessons", r.status === 200 && r.json.data.chapters.length === 20 && r.json.data.chapters.flatMap(ch => ch.lessons).length === 100);
 reset(); r = await call("/api/ai/lesson", { body: { course: { ...course, level: "advanced" }, chapterTitle: "فصل پیشرفته", lessonTitle: "تحلیل تخصصی" } });
-t("advanced lesson passes the higher content threshold", r.status === 200 && r.json.data.explanation.length >= 8000 && r.json.data.quiz.length >= 5);
+t("advanced lesson passes the revised advanced quality threshold", r.status === 200 && r.json.data.explanation.length >= 6000 && r.json.data.quiz.length >= 4);
 reset(); r = await call("/api/ai/check", { body: { lessonTitle: "آشنایی", level: "beginner", question: "چرا؟", learnerAnswer: "چون" } });
 t("check OK", r.status === 200 && r.json.data.verdict === "partial");
 reset(); r = await call("/api/ai/chat", { body: { level: "beginner", context: { courseTitle: "دوره", lessonTitle: "درس" }, messages: [{ role: "user", content: "سلام" }, { role: "assistant", content: "سلام!" }, { role: "user", content: "متوجه نشدم" }] } });

@@ -77,22 +77,42 @@ export default function CourseDetail() {
       ) : (
         <section aria-labelledby="structure" className="space-y-3">
           <h2 id="structure" className="font-bold">فصل‌ها و درس‌ها</h2>
-          {course.chapters.map(ch => (
-            <div key={ch.id} className="card">
-              <h3 className="font-bold">{ch.title}</h3>
-              <ol className="mt-2 divide-y divide-slate-200 dark:divide-white/10">
-                {ch.lessons.map(l => (
-                  <li key={l.id}>
-                    <Link to={`/courses/${course.id}/lessons/${l.id}`} className="flex min-h-11 items-center gap-3 py-2 text-sm hover:underline">
-                      <span className={l.completed ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}><Icon name={l.completed ? "check" : "play"} className="h-4 w-4" /></span>
-                      <span>{l.title}</span>
-                      <span className="muted ms-auto text-xs">{l.content ? "دارای محتوا · " : ""}{l.completed ? "تکمیل شده" : "انجام نشده"}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ))}
+          {(() => {
+            const renderChapters = (chapters: typeof course.chapters) => chapters.map(ch => (
+              <div key={ch.id} className="card">
+                <h3 className="font-bold">{ch.title}</h3>
+                <ol className="mt-2 divide-y divide-slate-200 dark:divide-white/10">
+                  {ch.lessons.map(l => (
+                    <li key={l.id}>
+                      <Link to={`/courses/${course.id}/lessons/${l.id}`} className="flex min-h-11 items-center gap-3 py-2 text-sm hover:underline">
+                        <span className={l.completed ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}><Icon name={l.completed ? "check" : "play"} className="h-4 w-4" /></span>
+                        <span>{l.title}</span>
+                        <span className="muted ms-auto text-xs">{l.content ? "دارای محتوا · " : ""}{l.completed ? "تکمیل شده" : "انجام نشده"}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ));
+            const hasTwoAdvancedParts = course.level === "advanced" && course.chapters.length > 10;
+            if (!hasTwoAdvancedParts) return renderChapters(course.chapters);
+            return (
+              <>
+                <div className="card border-indigo-300/40 dark:border-indigo-400/20">
+                  <span className="badge">بخش اول · فصل‌های ۱ تا ۱۰</span>
+                  <h3 className="mt-2 font-bold">مبانی پیشرفته و روش‌های تخصصی</h3>
+                  <p className="muted mt-1 text-sm leading-6">در این بخش، ساختار سیستم‌ها، اصول علمی، اندازه‌گیری و تحلیل پایه‌های تخصصی پوشش داده می‌شود.</p>
+                </div>
+                {renderChapters(course.chapters.slice(0, 10))}
+                <div className="card border-indigo-300/40 dark:border-indigo-400/20">
+                  <span className="badge">بخش دوم · فصل‌های ۱۱ تا ۲۰</span>
+                  <h3 className="mt-2 font-bold">عیب‌یابی تخصصی، یکپارچه‌سازی و پروژه نهایی</h3>
+                  <p className="muted mt-1 text-sm leading-6">در این بخش، تحلیل خطاها، تصمیم‌گیری مهندسی، سناریوهای پیچیده و پروژه جامع نهایی دنبال می‌شود.</p>
+                </div>
+                {renderChapters(course.chapters.slice(10))}
+              </>
+            );
+          })()}
         </section>
       )}
 

@@ -38,15 +38,17 @@ function json(data: unknown, status: number, extra: Record<string, string>): Res
 
 async function runTask(task: Task, body: unknown, env: Env) {
   const model = modelFor(env, task);
+  const outlineRequest = task === "outline" ? parseOutline(body) : null;
   const isAdvancedLesson = task === "lesson" && !!body && typeof body === "object" &&
     (body as Record<string, unknown>).course !== null &&
     typeof (body as Record<string, unknown>).course === "object" &&
     ((body as { course: { level?: unknown } }).course.level === "advanced");
-  // Advanced lessons need more generation time for their full curriculum depth.
-  // Keep one upstream attempt so the initial draft + one repair fit the browser timeout.
-  const requestEnv: Env = isAdvancedLesson
-    ? { ...env, UPSTREAM_TIMEOUT_MS: "75000", UPSTREAM_MAX_ATTEMPTS: "1" }
-    : env;
+  // Each outline segment is intentionally short and independent.
+  const requestEnv: Env = task === "outline"
+    ? { ...env, UPSTREAM_TIMEOUT_MS: "45000", UPSTREAM_MAX_ATTEMPTS: "1" }
+    : isAdvancedLesson
+      ? { ...env, UPSTREAM_TIMEOUT_MS: "75000", UPSTREAM_MAX_ATTEMPTS: "1" }
+      : env;
   const provider = getProvider(requestEnv);
   const s = task === "lesson"
     ? (() => {
@@ -59,9 +61,11 @@ async function runTask(task: Task, body: unknown, env: Env) {
   let messages;
   let finish: (t: string) => unknown;
   if (task === "outline") {
-    const course = parseOutline(body).course;
-    messages = outlineMessages(course);
-    finish = t => validateOutline(extractJson(t), course.level);
+    const { course, range } = outlineRequest!;
+    const total = course.level === "advanced" ? 20 : course.level === "intermediate" ? 10 : 5;
+    const batch = range ?? { start: 1, count: total };
+    messages = outlineMessages(course, batch);
+    finish = t => validateOutline(extractJson(t), course.level, batch.count);
   }
   else if (task === "lesson") {
     const r = parseLesson(body);
@@ -75,53 +79,35 @@ async function runTask(task: Task, body: unknown, env: Env) {
   }
   let res;
   if (task === "outline") {
-    const course = parseOutline(body).course;
+    const { course, range } = outlineRequest!;
     const total = course.level === "advanced" ? 20 : course.level === "intermediate" ? 10 : 5;
-    const chapters: { title: string; lessons: string[] }[] = [];
-    const outlineUsage = { prompt: 0, completion: 0, total: 0 };
-    // Generate five chapters per request. Smaller, ordered segments avoid output
-    // truncation and chapter-count drift on large 100-lesson curricula.
-    for (let start = 1; start <= total; start += 5) {
-      const batchMessages = outlineMessages(course, { start, count: 5 });
-      let batchResult: { title: string; lessons: string[] }[] | null = null;
-      let lastText = "";
-      for (let attempt = 0; attempt < 2 && !batchResult; attempt++) {
-        const requestMessages = attempt === 0 ? batchMessages : [
-          ...batchMessages,
-          { role: "assistant" as const, content: lastText.slice(0, 18000) },
-          { role: "user" as const, content: "اصلاح: فقط ۵ فصل همین بازه را برگردان. هر فصل دقیقاً ۵ عنوان درس غیرتکراری داشته باشد. فقط JSON معتبر و کامل." }
-        ];
-        res = await provider.complete({ model, messages: requestMessages, maxTokens: 7000, temperature: attempt ? 0.15 : 0.25 });
-        lastText = res.text;
-        if (res.usage) {
-          outlineUsage.prompt += res.usage.prompt;
-          outlineUsage.completion += res.usage.completion;
-          outlineUsage.total += res.usage.total;
-        }
-        try {
-          if (res.finishReason === "length") throw new Error("truncated");
-          const parsed = extractJson(res.text) as any;
-          if (!parsed || !Array.isArray(parsed.chapters)) throw new HttpError(502, "ai_outline_incomplete");
-          // Some providers ignore the requested segment and return the entire
-          // curriculum. Accept that valid shape and take only this ordered slice.
-          const segment = parsed.chapters.length === total
-            ? parsed.chapters.slice(start - 1, start - 1 + 5)
-            : parsed.chapters;
-          const checked = validateOutline({ chapters: segment }, "beginner");
-          if (checked.chapters.length !== 5) throw new HttpError(502, "ai_outline_incomplete");
-          batchResult = checked.chapters;
-        } catch (error) {
-          if (attempt === 1) {
-            if (error instanceof HttpError && error.code === "ai_bad_output") throw error;
-            throw new HttpError(502, "ai_outline_incomplete");
-          }
+    const batch = range ?? { start: 1, count: total };
+    const maxTokens = batch.count * 1800;
+    let lastResult: Awaited<ReturnType<typeof provider.complete>> | undefined;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const requestMessages = attempt === 0 ? messages : [
+        ...messages,
+        { role: "assistant" as const, content: lastResult?.text.slice(0, 12000) ?? "" },
+        { role: "user" as const, content: `اصلاح خروجی: فقط فصل‌های شماره ${batch.start} تا ${batch.start + batch.count - 1} را برگردان. دقیقاً ${batch.count} فصل و برای هر فصل دقیقاً ۵ عنوان درس متمایز ارائه کن. فقط JSON معتبر.` }
+      ];
+      lastResult = await provider.complete({ model, messages: requestMessages, maxTokens, temperature: attempt ? 0.15 : 0.25 });
+      try {
+        if (lastResult.finishReason === "length") throw new HttpError(502, "ai_outline_incomplete");
+        const parsed = extractJson(lastResult.text) as any;
+        if (!parsed || !Array.isArray(parsed.chapters)) throw new HttpError(502, "ai_outline_incomplete");
+        const segment = parsed.chapters.length === total
+          ? parsed.chapters.slice(batch.start - 1, batch.start - 1 + batch.count)
+          : parsed.chapters;
+        const checked = validateOutline({ chapters: segment }, course.level, batch.count);
+        return { data: checked, meta: { model: lastResult.model, finishReason: lastResult.finishReason ?? null, usage: lastResult.usage ?? null } };
+      } catch (error) {
+        if (attempt === 1) {
+          if (error instanceof HttpError) throw error;
+          throw new HttpError(502, "ai_outline_incomplete");
         }
       }
-      if (!batchResult) throw new HttpError(502, "ai_outline_incomplete");
-      chapters.push(...batchResult);
     }
-    const outline = validateOutline({ chapters }, course.level);
-    return { data: outline, meta: { model: res!.model, finishReason: res!.finishReason ?? null, usage: outlineUsage.total ? outlineUsage : null } };
+    throw new HttpError(502, "ai_outline_incomplete");
   }
 
   res = await provider.complete({ model, messages, maxTokens: s.maxTokens, temperature: s.temperature });

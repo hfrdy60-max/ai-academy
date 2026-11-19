@@ -98,7 +98,7 @@ export default function CreateCourse() {
       const course = await createCourse({ title, subject, description, goal, level, withSampleStructure: structure === "sample", outline });
       navigate(`/courses/${course.id}`);
     } catch (err) {
-      setError(err instanceof AiError ? err.message : errMsg(err));
+      setError(errMsg(err));
       setStatus(null);
       setSaving(false);
     }

@@ -78,7 +78,7 @@ export default function CreateCourse() {
   const [description, setDescription] = useState(() => draft?.description ?? "");
   const [goal, setGoal] = useState(() => draft?.goal ?? "");
   const [level, setLevel] = useState<Level>(() => draft?.level ?? "beginner");
-  const [structure, setStructure] = useState<Structure>(() => draft?.structure ?? "sample");
+  const [structure, setStructure] = useState<Structure>(() => draft?.structure ?? "quick");
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

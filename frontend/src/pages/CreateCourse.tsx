@@ -55,8 +55,11 @@ export default function CreateCourse() {
       let outline: { title: string; lessons: string[] }[] | undefined;
       if (structure === "ai") {
         if (!title.trim() || !subject.trim()) throw new Error(!title.trim() ? "عنوان دوره را وارد کنید." : "موضوع دوره را وارد کنید.");
-        setStatus("در حال طراحی فصل‌ها و درس‌ها با هوش مصنوعی… ممکن است تا یک دقیقه طول بکشد.");
-        outline = (await generateOutline({ title: title.trim(), subject: subject.trim(), level, goal: goal.trim(), description: description.trim() })).data.chapters;
+        setStatus("در حال طراحی مرحله‌ای ساختار دوره با هوش مصنوعی…");
+        outline = (await generateOutline(
+          { title: title.trim(), subject: subject.trim(), level, goal: goal.trim(), description: description.trim() },
+          (completed, total) => setStatus(`طراحی ساختار دوره: ${fa(completed)} از ${fa(total)} فصل آماده شد…`)
+        )).data.chapters;
       }
       const course = await createCourse({ title, subject, description, goal, level, withSampleStructure: structure === "sample", outline });
       navigate(`/courses/${course.id}`);

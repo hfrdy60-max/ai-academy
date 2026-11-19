@@ -78,8 +78,30 @@ export interface LessonProgression {
 }
 export interface TeacherContext { courseTitle?: string; subject?: string; goal?: string; lessonTitle?: string; lessonText?: string }
 
-export const generateOutline = (course: CourseInfo) =>
-  call<{ chapters: { title: string; lessons: string[] }[] }>("outline", { course }, 360_000);
+export async function generateOutline(
+  course: CourseInfo,
+  onProgress?: (completedChapters: number, totalChapters: number) => void
+): Promise<{ data: { chapters: { title: string; lessons: string[] }[] }; model: string }> {
+  const total = course.level === "advanced" ? 20 : course.level === "intermediate" ? 10 : 5;
+  const batchSize = 2;
+  const chapters: { title: string; lessons: string[] }[] = [];
+  let model = "";
+  // Each small segment is its own HTTP request, avoiding one oversized request
+  // for an entire 100-lesson advanced curriculum.
+  for (let start = 1; start <= total; start += batchSize) {
+    const count = Math.min(batchSize, total - start + 1);
+    const result = await call<{ chapters: { title: string; lessons: string[] }[] }>(
+      "outline", { course, range: { start, count } }, 125_000
+    );
+    if (!Array.isArray(result.data.chapters) || result.data.chapters.length !== count) {
+      throw new AiError("ai_outline_incomplete", aiErrorText("ai_outline_incomplete"));
+    }
+    chapters.push(...result.data.chapters);
+    model = result.model || model;
+    onProgress?.(Math.min(start + count - 1, total), total);
+  }
+  return { data: { chapters }, model };
+}
 
 export const generateLesson = (course: CourseInfo, chapterTitle: string, lessonTitle: string, instruction = "", progression?: LessonProgression) =>
   call<LessonContent>("lesson", { course, chapterTitle, lessonTitle, instruction, progression }, 210_000);

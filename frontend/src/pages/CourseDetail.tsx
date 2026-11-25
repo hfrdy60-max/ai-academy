@@ -38,7 +38,7 @@ export default function CourseDetail() {
 
   const allLessons = course.chapters.flatMap(ch => ch.lessons);
   const legacyGenericOutline = allLessons.length > 0 &&
-    allLessons.every(lesson => /^درس\\s*[۰-۹0-9]+[:：]/.test(lesson.title) && lesson.title.includes("در «")) &&
+    allLessons.every(lesson => /^درس\s*[۰-۹0-9]+[:：]/.test(lesson.title) && lesson.title.includes("در «")) &&
     allLessons.every(lesson => !lesson.content && !lesson.completed);
 
   async function redesignLegacyCourse() {

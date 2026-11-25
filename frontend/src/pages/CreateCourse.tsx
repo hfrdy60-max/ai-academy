@@ -3,55 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { errMsg } from "../lib/errors";
 import { fa } from "../lib/format";
 import { createCourse, LIMITS } from "../services/courseService";
+import { generateOutline } from "../services/aiClient";
 import { LEVELS } from "../types/course";
 import type { Level } from "../types/course";
 
 type Structure = "quick" | "sample" | "none";
 type CourseDraft = { title: string; subject: string; description: string; goal: string; level: Level; structure: Structure };
 const DRAFT_KEY = "ai-academy-course-draft";
-
-const QUICK_CHAPTERS = [
-  "شناخت موضوع و دامنه",
-  "واژگان و مفاهیم پایه",
-  "اصول و مبانی علمی",
-  "اجزا و ساختار",
-  "سازوکار عملکرد",
-  "ورودی‌ها و خروجی‌ها",
-  "ابزارها و روش‌ها",
-  "اندازه‌گیری و گردآوری داده",
-  "تحلیل و تفسیر نتایج",
-  "روش‌های اجرایی",
-  "خطاها و محدودیت‌ها",
-  "عیب‌یابی و حل مسئله",
-  "مقایسه روش‌ها و راهکارها",
-  "طراحی و تصمیم‌گیری",
-  "کاربردهای تخصصی",
-  "یکپارچه‌سازی و تعامل اجزا",
-  "شرایط مرزی و موارد خاص",
-  "مطالعه موردی",
-  "تمرین و ارزیابی مستقل",
-  "پروژه نهایی و جمع‌بندی"
-] as const;
-
-function buildQuickOutline(subject: string, level: Level) {
-  const count = level === "advanced" ? 20 : level === "intermediate" ? 10 : 5;
-  const lessonStages = [
-    "تعریف‌ها و اصطلاحات کلیدی",
-    "ساختار و اجزای اصلی",
-    "اصول و سازوکار عملکرد",
-    "تحلیل و کاربرد گام‌به‌گام",
-    "خطاهای رایج و روش ارزیابی"
-  ];
-  return QUICK_CHAPTERS.slice(0, count).map((stage, index) => {
-    const chapterTitle = `بخش ${fa(index + 1)}: ${subject} — ${stage}`;
-    return {
-      title: chapterTitle,
-      lessons: lessonStages.map((lesson, lessonIndex) =>
-        `درس ${fa(lessonIndex + 1)}: ${lesson} در «${stage}»`
-      )
-    };
-  });
-}
 
 function readCourseDraft(): CourseDraft | null {
   try {
@@ -92,9 +50,18 @@ export default function CreateCourse() {
     setSaving(true); setError(null); setStatus(null);
     try {
       if (!title.trim() || !subject.trim()) throw new Error(!title.trim() ? "عنوان دوره را وارد کنید." : "موضوع دوره را وارد کنید.");
-      // Course creation is local and instant. AI is called later for one lesson at a time,
-      // so a large 100-lesson curriculum never blocks the create-course screen.
-      const outline = structure === "quick" ? buildQuickOutline(subject.trim(), level) : undefined;
+      // Design the curriculum with the existing Worker outline agent in small batches.
+      // This replaces generic placeholder titles while keeping advanced requests bounded.
+      let outline: { title: string; lessons: string[] }[] | undefined;
+      if (structure === "quick") {
+        setStatus("در حال طراحی سرفصل‌های تخصصی با هوش مصنوعی…");
+        const result = await generateOutline(
+          { title: title.trim(), subject: subject.trim(), description: description.trim(), goal: goal.trim(), level },
+          (completed, total) => setStatus(`طراحی ساختار دوره: ${fa(completed)} از ${fa(total)} فصل آماده شد…`)
+        );
+        outline = result.data.chapters;
+        setStatus("ساختار دوره آماده شد؛ در حال ذخیره…");
+      }
       const course = await createCourse({ title, subject, description, goal, level, withSampleStructure: structure === "sample", outline });
       navigate(`/courses/${course.id}`);
     } catch (err) {
@@ -108,7 +75,7 @@ export default function CreateCourse() {
     <div className="mx-auto max-w-2xl space-y-5">
       <h1 className="text-xl font-extrabold md:text-2xl">ساخت دوره جدید</h1>
       {draft && <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200" role="status">مشخصات دوره از گفتگوی معلم هوشمند وارد شد. قبل از ساخت، آن‌ها را بررسی و در صورت نیاز ویرایش کنید.</p>}
-      <p className="muted text-sm leading-7">عنوان و موضوع را وارد کنید. چارچوب دوره فوراً و بدون درخواست هوش مصنوعی ساخته می‌شود؛ محتوای آموزشی هر درس هنگام ورود به همان درس، جداگانه تولید خواهد شد. عنوان فصل‌ها و درس‌ها نیز در «ویرایش دوره» قابل تغییر است.</p>
+      <p className="muted text-sm leading-7">عنوان و موضوع را وارد کنید. سرفصل‌های تخصصی دوره با هوش مصنوعی طراحی می‌شوند؛ محتوای هر درس هنگام ورود به همان درس، جداگانه تولید خواهد شد.</p>
 
       <form onSubmit={e => void submit(e)} className="card space-y-4" noValidate>
         <div>
@@ -142,7 +109,7 @@ export default function CreateCourse() {
         <div>
           <label htmlFor="c-structure" className="mb-1 block text-sm font-bold">ساختار فصل‌ها و درس‌ها</label>
           <select id="c-structure" className="input" value={structure} onChange={e => { touched.current = true; setStructure(e.target.value as Structure); }}>
-            <option value="quick">ساخت فوری چارچوب دوره (بدون انتظار؛ تولید محتوای هر درس جداگانه)</option>
+            <option value="quick">طراحی هوشمند سرفصل‌ها با هوش مصنوعی (تولید محتوای درس‌ها جداگانه)</option>
             <option value="sample">ساختار آزمایشی (۳ فصل و ۶ درس با عنوان کلی)</option>
             <option value="none">خالی (خودم اضافه می‌کنم)</option>
           </select>

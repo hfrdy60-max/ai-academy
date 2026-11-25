@@ -1,5 +1,6 @@
 import { HttpError } from "../security/errors";
 import { clean } from "../security/validate";
+import type { OutlinePreviousChapter } from "./requests";
 
 export interface Exercise { question: string; hint: string; sampleAnswer: string }
 export interface QuizItem { question: string; options: string[]; correctIndex: number; explanation: string }
@@ -28,7 +29,7 @@ const list = (v: unknown, maxItems: number, maxLen: number): string[] =>
   Array.isArray(v) ? v.map(x => text(x, maxLen)).filter(Boolean).slice(0, maxItems) : [];
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
-export function validateOutline(raw: unknown, level: "beginner" | "intermediate" | "advanced" = "beginner", chapterCount?: number): Outline {
+export function validateOutline(raw: unknown, level: "beginner" | "intermediate" | "advanced" = "beginner", chapterCount?: number, previousChapters: OutlinePreviousChapter[] = []): Outline {
   const expected = {
     beginner: { chapters: 5, lessons: 25 },
     intermediate: { chapters: 10, lessons: 50 },
@@ -43,8 +44,8 @@ export function validateOutline(raw: unknown, level: "beginner" | "intermediate"
     .toLocaleLowerCase("fa")
     .replace(/[\u200c\u200d\s\u0640]/g, "")
     .replace(/[\p{P}\p{S}]/gu, "");
-  const chapterTitles = new Set<string>();
-  const lessonTitles = new Set<string>();
+  const chapterTitles = new Set<string>(previousChapters.map(chapter => normalizeTitle(chapter.title)));
+  const lessonTitles = new Set<string>(previousChapters.flatMap(chapter => chapter.lessons.map(normalizeTitle)));
   const chapters = raw.chapters.map(c => {
     if (!isObj(c)) throw new HttpError(502, "ai_outline_incomplete");
     const title = text(c.title, 150);

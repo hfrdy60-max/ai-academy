@@ -46,6 +46,7 @@ const upstream = http.createServer((req, res) => {
     let content;
     if (mode === "garbage") content = "این یک متن آزاد است و JSON نیست";
     else if (mode === "emptylesson") content = JSON.stringify({ intro: "x", objectives: [], explanation: "" });
+    else if (mode === "shortTwiceThenValid" && sys.includes("lesson author") && calls <= 2) content = JSON.stringify({ intro: "x", objectives: [], explanation: "" });
     else if (sys.includes("curriculum architect")) {
       const level = /Level: (beginner|intermediate|advanced)/.exec(body.messages?.[1]?.content ?? "")?.[1] ?? "beginner";
       const outline = makeOutline(level);
@@ -135,6 +136,8 @@ reset(); r = await call("/api/ai/outline", { body: { course: { ...course, level:
 t("advanced outline is exactly 100 lessons", r.status === 200 && r.json.data.chapters.length === 20 && r.json.data.chapters.flatMap(ch => ch.lessons).length === 100);
 reset(); r = await call("/api/ai/lesson", { body: { course: { ...course, level: "advanced" }, chapterTitle: "فصل پیشرفته", lessonTitle: "تحلیل تخصصی" } });
 t("advanced lesson passes the revised advanced quality threshold", r.status === 200 && r.json.data.explanation.length >= 6000 && r.json.data.quiz.length >= 4);
+reset("shortTwiceThenValid"); r = await call("/api/ai/lesson", { body: { course: { ...course, level: "advanced" }, chapterTitle: "فصل پیشرفته", lessonTitle: "تحلیل تخصصی" } });
+t("advanced lesson initial and both repair calls stay under the supported output-token ceiling", r.status === 200 && calls === 3 && seen.length === 3 && seen.every(item => item.body.max_tokens <= 15000) && seen.every(item => item.body.max_tokens === 15000));
 reset(); r = await call("/api/ai/check", { body: { lessonTitle: "آشنایی", level: "beginner", question: "چرا؟", learnerAnswer: "چون" } });
 t("check OK", r.status === 200 && r.json.data.verdict === "partial");
 reset(); r = await call("/api/ai/chat", { body: { level: "beginner", context: { courseTitle: "دوره", lessonTitle: "درس" }, messages: [{ role: "user", content: "سلام" }, { role: "assistant", content: "سلام!" }, { role: "user", content: "متوجه نشدم" }] } });

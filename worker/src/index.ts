@@ -39,15 +39,12 @@ function json(data: unknown, status: number, extra: Record<string, string>): Res
 async function runTask(task: Task, body: unknown, env: Env) {
   const model = modelFor(env, task);
   const outlineRequest = task === "outline" ? parseOutline(body) : null;
-  const isAdvancedLesson = task === "lesson" && !!body && typeof body === "object" &&
-    (body as Record<string, unknown>).course !== null &&
-    typeof (body as Record<string, unknown>).course === "object" &&
-    ((body as { course: { level?: unknown } }).course.level === "advanced");
-  // Each outline segment is intentionally short and independent.
+  const isLessonTask = task === "lesson";
+  // Lesson responses get a larger time budget; quality repairs are handled below.
   const requestEnv: Env = task === "outline"
     ? { ...env, UPSTREAM_TIMEOUT_MS: "45000", UPSTREAM_MAX_ATTEMPTS: "1" }
-    : isAdvancedLesson
-      ? { ...env, UPSTREAM_TIMEOUT_MS: "75000", UPSTREAM_MAX_ATTEMPTS: "1" }
+    : isLessonTask
+      ? { ...env, UPSTREAM_TIMEOUT_MS: "65000", UPSTREAM_MAX_ATTEMPTS: "1" }
       : env;
   const provider = getProvider(requestEnv);
   const s = task === "lesson"
@@ -55,7 +52,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
         const bodyObj = body && typeof body === "object" ? body as Record<string, unknown> : {};
         const courseObj = bodyObj.course && typeof bodyObj.course === "object" ? bodyObj.course as Record<string, unknown> : {};
         const courseLevel = courseObj.level;
-        return { maxTokens: courseLevel === "advanced" ? 16000 : courseLevel === "intermediate" ? 10000 : 6500, temperature: SETTINGS.lesson.temperature };
+        return { maxTokens: courseLevel === "advanced" ? 18000 : courseLevel === "intermediate" ? 13000 : 9000, temperature: SETTINGS.lesson.temperature };
       })()
     : SETTINGS[task];
   let messages;

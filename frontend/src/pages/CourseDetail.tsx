@@ -6,16 +6,20 @@ import ProgressBar from "../components/ProgressBar";
 import { useCourse } from "../hooks/useCourses";
 import { errMsg } from "../lib/errors";
 import { fa } from "../lib/format";
-import { courseProgress, nextLesson, removeCourse } from "../services/courseService";
+import { courseProgress, nextLesson, removeCourse, redesignCourseOutline } from "../services/courseService";
+import { generateOutline } from "../services/aiClient";
 import { levelLabel } from "../types/course";
 
 export default function CourseDetail() {
   const { courseId } = useParams();
   const navigate = useNavigate();
-  const { course, loading, error } = useCourse(courseId);
+  const { course, loading, error, setCourse } = useCourse(courseId);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [redesigning, setRedesigning] = useState(false);
+  const [redesignStatus, setRedesignStatus] = useState<string | null>(null);
+  const [redesignError, setRedesignError] = useState<string | null>(null);
 
   if (loading) return <p className="muted" role="status">در حال بارگذاری…</p>;
   if (error) return <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{error}</p>;
@@ -31,6 +35,28 @@ export default function CourseDetail() {
 
   const p = courseProgress(course);
   const next = nextLesson(course);
+
+  const allLessons = course.chapters.flatMap(ch => ch.lessons);
+  const legacyGenericOutline = allLessons.length > 0 &&
+    allLessons.every(lesson => /^درس\\s*[۰-۹0-9]+[:：]/.test(lesson.title) && lesson.title.includes("در «")) &&
+    allLessons.every(lesson => !lesson.content && !lesson.completed);
+
+  async function redesignLegacyCourse() {
+    if (!course) return;
+    setRedesigning(true); setRedesignError(null); setRedesignStatus("در حال طراحی دوباره سرفصل‌های تخصصی…");
+    try {
+      const result = await generateOutline(
+        { title: course.title, subject: course.subject, description: course.description, goal: course.goal, level: course.level },
+        (done, total) => setRedesignStatus(`طراحی سرفصل‌ها: ${fa(done)} از ${fa(total)} فصل آماده شد…`)
+      );
+      const updated = await redesignCourseOutline(course.id, result.data.chapters, course.level);
+      setCourse(updated);
+      setRedesignStatus(null);
+    } catch (e) {
+      setRedesignError(e instanceof Error ? e.message : "بازطراحی دوره انجام نشد. دوباره تلاش کنید.");
+      setRedesignStatus(null);
+    } finally { setRedesigning(false); }
+  }
 
   async function doDelete() {
     if (!course) return;
@@ -69,7 +95,18 @@ export default function CourseDetail() {
           <Link to={`/courses/${course.id}/edit`} className="btn btn-ghost"><Icon name="edit" className="h-4 w-4" />ویرایش دوره</Link>
           <button type="button" className="btn btn-ghost" onClick={() => setConfirm(true)}><Icon name="trash" className="h-4 w-4" />حذف دوره</button>
         </div>
-        {actionError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{actionError}</p>}
+        {legacyGenericOutline && (
+          <div className="rounded-xl border border-amber-300/40 p-3 space-y-2">
+            <p className="text-sm leading-6">این دوره از ساختار قدیمی و عنوان‌های عمومی استفاده می‌کند. می‌توانم سرفصل‌های واقعی و اختصاصی برای موضوع دوره بسازم.</p>
+            <button type="button" className="btn btn-primary" disabled={redesigning} onClick={() => void redesignLegacyCourse()}>
+              <Icon name="sparkles" className="h-4 w-4" />{redesigning ? "در حال بازطراحی…" : "اصلاح سرفصل‌های این دوره"}
+            </button>
+            {redesignStatus && <p role="status" className="muted text-xs">{redesignStatus}</p>}
+            {redesignError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{redesignError}</p>}
+            <p className="muted text-xs">این گزینه فقط وقتی نمایش داده می‌شود که هنوز هیچ درس یا پیشرفتی ثبت نشده باشد.</p>
+          </div>
+        )}
+                {actionError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{actionError}</p>}
       </section>
 
       {p.total === 0 ? (

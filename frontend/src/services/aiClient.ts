@@ -104,7 +104,7 @@ export async function generateOutline(
 }
 
 export const generateLesson = (course: CourseInfo, chapterTitle: string, lessonTitle: string, instruction = "", progression?: LessonProgression) =>
-  call<LessonContent>("lesson", { course, chapterTitle, lessonTitle, instruction, progression }, 210_000);
+  call<LessonContent>("lesson", { course, chapterTitle, lessonTitle, instruction, progression }, 240_000);
 
 export async function askTeacher(level: Level, context: TeacherContext, history: Pick<ChatMessage, "role" | "content">[]): Promise<string> {
   const r = await call<{ reply: string }>("chat", { level, context, messages: history.slice(-12) });

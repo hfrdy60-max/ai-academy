@@ -20,18 +20,39 @@ function course(v: unknown): CourseCtx {
 }
 
 export interface OutlineRange { start: number; count: number }
+export interface OutlinePreviousChapter { title: string; lessons: string[] }
 
 export const parseOutline = (b: unknown) => {
   const o = obj(b, "body");
   const parsedCourse = course(o.course);
-  if (o.range === undefined) return { course: parsedCourse, range: undefined as OutlineRange | undefined };
-  const r = obj(o.range, "range");
-  const start = Number(r.start), count = Number(r.count);
   const total = parsedCourse.level === "advanced" ? 20 : parsedCourse.level === "intermediate" ? 10 : 5;
-  if (!Number.isInteger(start) || !Number.isInteger(count) || start < 1 || count < 1 || count > 2 || start + count - 1 > total) {
-    throw new HttpError(400, "invalid_outline_range");
+  const range = o.range === undefined
+    ? undefined
+    : (() => {
+        const r = obj(o.range, "range");
+        const start = Number(r.start), count = Number(r.count);
+        if (!Number.isInteger(start) || !Number.isInteger(count) || start < 1 || count < 1 || count > 2 || start + count - 1 > total) {
+          throw new HttpError(400, "invalid_outline_range");
+        }
+        return { start, count } as OutlineRange;
+      })();
+  const expectedPrevious = range ? range.start - 1 : 0;
+  const rawPrevious = o.previousChapters ?? [];
+  if (!Array.isArray(rawPrevious) || rawPrevious.length !== expectedPrevious) {
+    throw new HttpError(400, "invalid_outline_context");
   }
-  return { course: parsedCourse, range: { start, count } as OutlineRange };
+  const previousChapters: OutlinePreviousChapter[] = rawPrevious.map((item, index) => {
+    const chapter = obj(item, "previous_chapter");
+    if (!Array.isArray(chapter.lessons) || chapter.lessons.length !== 5) {
+      throw new HttpError(400, "invalid_outline_context");
+    }
+    return {
+      title: str(chapter.title, `previous_chapter_${index + 1}`, 150),
+      lessons: chapter.lessons.map((lesson, lessonIndex) =>
+        str(lesson, `previous_lesson_${index + 1}_${lessonIndex + 1}`, 150))
+    };
+  });
+  return { course: parsedCourse, range, previousChapters };
 };
 
 export function parseLesson(b: unknown) {

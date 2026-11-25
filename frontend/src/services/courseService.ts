@@ -110,6 +110,25 @@ function checkInfo(i: Info): Info {
   return r;
 }
 
+/** Replace an untouched legacy/generated scaffold with a fresh AI outline. */
+export async function redesignCourseOutline(courseId: string, outline: Plan[], level: Level): Promise<Course> {
+  const current = await mustGet(courseId);
+  if (current.level !== level) throw new Error("سطح دوره تغییر کرده است؛ صفحه را تازه‌سازی کنید.");
+  const allLessons = current.chapters.flatMap(ch => ch.lessons);
+  if (allLessons.some(lesson => lesson.content || lesson.completed)) {
+    throw new Error("برای حفظ محتوای نوشته‌شده و پیشرفت شما، بازطراحی خودکار این دوره مجاز نیست.");
+  }
+  const chapters = buildChapters(validateGeneratedOutline(outline, level));
+  const saved: Course = {
+    ...current,
+    chapters,
+    lastLessonId: undefined,
+    updatedAt: nextCourseRevision(current)
+  };
+  await saveCourse(saved);
+  return saved;
+}
+
 export async function createCourse(input: NewCourseInput): Promise<Course> {
   const info = checkInfo(input);
   const now = Date.now();

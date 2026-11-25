@@ -51,6 +51,7 @@ const upstream = http.createServer((req, res) => {
       const outline = makeOutline(level);
       if (mode === "duplicateLesson") outline.chapters[1].lessons[0] = outline.chapters[0].lessons[0];
       if (mode === "duplicateChapter") outline.chapters[1].title = outline.chapters[0].title;
+      if (mode === "duplicatePrevious") outline.chapters[2].lessons[0] = "عنوان تکراری از فصل قبلی";
       content = "```json\\n" + JSON.stringify(outline) + "\\n```";
     }
     else if (sys.includes("lesson author")) content = JSON.stringify(LESSON);
@@ -99,6 +100,23 @@ reset("duplicateLesson"); r = await call("/api/ai/outline", { body: { course } }
 t("outline rejects duplicate lesson titles", r.status === 502 && r.json.error === "ai_outline_incomplete");
 reset("duplicateChapter"); r = await call("/api/ai/outline", { body: { course } });
 t("outline rejects duplicate chapter titles", r.status === 502 && r.json.error === "ai_outline_incomplete");
+
+const previousChapters = [
+  { title: "مبانی قبلی اول", lessons: ["عنوان قدیمی اول", "عنوان قدیمی دوم", "عنوان قدیمی سوم", "عنوان قدیمی چهارم", "عنوان قدیمی پنجم"] },
+  { title: "مبانی قبلی دوم", lessons: ["درس تکراری از فصل قبلی", "عنوان قدیمی هفتم", "عنوان قدیمی هشتم", "عنوان قدیمی نهم", "عنوان قدیمی دهم"] }
+];
+reset();
+r = await call("/api/ai/outline", { body: { course: { ...course, level: "intermediate" }, range: { start: 3, count: 2 }, previousChapters } });
+t("segmented outline accepts a batch when prior chapters are supplied", r.status === 200 && r.json.data.chapters.length === 2);
+t("outline prompt includes the exact previously generated lesson titles", seen[0]?.body.messages[1]?.content.includes("عنوان قدیمی اول") && seen[0]?.body.messages[0]?.content.includes("GLOBAL UNIQUENESS IS MANDATORY"));
+reset("duplicatePrevious");
+r = await call("/api/ai/outline", { body: { course: { ...course, level: "intermediate" }, range: { start: 3, count: 2 }, previousChapters: [
+  { ...previousChapters[0], lessons: ["عنوان تکراری از فصل قبلی", ...previousChapters[0].lessons.slice(1)] },
+  previousChapters[1]
+] } });
+t("outline rejects a title duplicated against an earlier batch", r.status === 502 && r.json.error === "ai_outline_incomplete" && calls === 2);
+r = await call("/api/ai/outline", { body: { course: { ...course, level: "intermediate" }, range: { start: 3, count: 2 } } });
+t("segmented outline refuses to run without its exact prior-chapter context", r.status === 400 && r.json.error === "invalid_outline_context");
 
 t("upstream got Bearer key; key NOT in response", seen[0].auth === "Bearer sk-test-KEY" && !r.text.includes("sk-test-KEY"));
 t("model comes from config", seen[0].body.model === "openai/gpt-4o-mini");

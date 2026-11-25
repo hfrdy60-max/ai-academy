@@ -1,6 +1,6 @@
 import type { Level } from "../types";
 import type { ChatMsg } from "../providers/types";
-import type { ChatTurn, CourseCtx, LessonProgression } from "./requests";
+import type { ChatTurn, CourseCtx, LessonProgression, OutlinePreviousChapter } from "./requests";
 
 const LEVEL_TEXT: Record<Level, string> = {
   beginner: "complete beginner: very simple words, everyday analogies, assume no prior knowledge, small steps",
@@ -21,13 +21,16 @@ const BASE = `You are the teacher inside "AI Academy", a Persian-language learni
 const courseBlock = (c: CourseCtx) =>
   `<data>\nCourse title: ${c.title}\nSubject: ${c.subject}\nLevel: ${c.level}\nLearning goal: ${c.goal || "(none)"}\nDescription: ${c.description || "(none)"}\n</data>`;
 
-export function outlineMessages(c: CourseCtx, range?: { start: number; count: number }): ChatMsg[] {
+export function outlineMessages(c: CourseCtx, range?: { start: number; count: number }, previousChapters: OutlinePreviousChapter[] = []): ChatMsg[] {
   const plan = {
     beginner: { chapters: 5, lessons: 25 },
     intermediate: { chapters: 10, lessons: 50 },
     advanced: { chapters: 20, lessons: 100 }
   }[c.level];
   const batch = range ?? { start: 1, count: plan.chapters };
+  const previousContext = previousChapters.length
+    ? "<data>\nPreviously generated chapters — these are fixed and must not be repeated:\n" + previousChapters.map((chapter, index) => "Chapter " + (index + 1) + ": " + chapter.title + "\nLessons:\n" + chapter.lessons.map((lesson, lessonIndex) => "  " + (lessonIndex + 1) + ". " + lesson).join("\n")).join("\n") + "\n</data>"
+    : "<data>No earlier chapters have been generated.</data>";
   return [
     { role: "system", content: `${BASE}
 Role: expert curriculum architect. Learner level: ${LEVEL_TEXT[c.level]}.
@@ -43,6 +46,8 @@ Curriculum design:
 - First map the subject into its major domains, subdomains, core principles, tools, applications and real-world contexts. Then distribute them in a logical sequence across the full course.
 - Design a complete learning journey, not a list of unrelated topics. Each lesson must depend on, extend or apply knowledge from earlier lessons. The sequence should move from prerequisites to mechanisms, analysis, practice, integration and mastery.
 - Make every lesson distinct and outcome-oriented. Each title must describe a teachable concept, method, analysis skill or practical capability. Avoid generic or repeated titles and avoid splitting one small concept into several artificially short lessons.
+- GLOBAL UNIQUENESS IS MANDATORY: compare every proposed chapter and lesson title with every title in the supplied previously generated chapters. Do not repeat an exact title, a normalized spelling variant, or the same learning outcome with cosmetic wording changes. Each new title must add a genuinely new concept or capability to the course.
+- Do not restart numbering or reuse a standard five-step template in each chapter. Tailor titles to the actual subject and the global course sequence.
 - Ensure each chapter has a clear role in the learning journey and its five lessons progress within that chapter rather than repeat one another.
 - Beginner: start with accessible foundations, terminology and safe first applications, then build toward independent basic problem-solving.
 - Intermediate: assume basic familiarity, then deepen mechanisms, practical methods, comparisons, interpreting evidence, troubleshooting and multi-step tasks.
@@ -56,7 +61,7 @@ Curriculum design:
 Return ONLY one JSON object, no markdown, in exactly this shape:
 {"chapters":[{"title":"...","lessons":["...","...","...","...","..."]}]}
 The returned segment must contain exactly ${batch.count} chapter objects and exactly ${batch.count * 5} lesson titles. ` }, 
-    { role: "user", content: `${courseBlock(c)}\n<data>\nGenerate global chapters ${batch.start}-${batch.start + batch.count - 1} only.\n</data>` }
+    { role: "user", content: `${courseBlock(c)}\n${previousContext}\n<data>\nGenerate global chapters ${batch.start}-${batch.start + batch.count - 1} only. Every chapter and lesson title must be new relative to the previous chapter list above.\n</data>` }
   ];
 }
 

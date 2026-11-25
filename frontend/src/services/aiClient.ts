@@ -91,7 +91,7 @@ export async function generateOutline(
   for (let start = 1; start <= total; start += batchSize) {
     const count = Math.min(batchSize, total - start + 1);
     const result = await call<{ chapters: { title: string; lessons: string[] }[] }>(
-      "outline", { course, range: { start, count } }, 125_000
+      "outline", { course, range: { start, count }, previousChapters: chapters }, 125_000
     );
     if (!Array.isArray(result.data.chapters) || result.data.chapters.length !== count) {
       throw new AiError("ai_outline_incomplete", aiErrorText("ai_outline_incomplete"));

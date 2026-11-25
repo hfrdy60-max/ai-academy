@@ -59,11 +59,11 @@ async function runTask(task: Task, body: unknown, env: Env) {
   let finish: (t: string) => unknown;
   let lessonRepairHint: (draft: string) => string = () => "خروجی قبلی ناقص بود؛ همه فیلدهای لازم را کامل کن.";
   if (task === "outline") {
-    const { course, range } = outlineRequest!;
+    const { course, range, previousChapters } = outlineRequest!;
     const total = course.level === "advanced" ? 20 : course.level === "intermediate" ? 10 : 5;
     const batch = range ?? { start: 1, count: total };
-    messages = outlineMessages(course, batch);
-    finish = t => validateOutline(extractJson(t), course.level, batch.count);
+    messages = outlineMessages(course, batch, previousChapters);
+    finish = t => validateOutline(extractJson(t), course.level, batch.count, previousChapters);
   }
   else if (task === "lesson") {
     const r = parseLesson(body);
@@ -88,7 +88,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
   }
   let res;
   if (task === "outline") {
-    const { course, range } = outlineRequest!;
+    const { course, range, previousChapters } = outlineRequest!;
     const total = course.level === "advanced" ? 20 : course.level === "intermediate" ? 10 : 5;
     const batch = range ?? { start: 1, count: total };
     const maxTokens = batch.count * 1800;
@@ -97,7 +97,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
       const requestMessages = attempt === 0 ? messages : [
         ...messages,
         { role: "assistant" as const, content: lastResult?.text.slice(0, 12000) ?? "" },
-        { role: "user" as const, content: `اصلاح خروجی: فقط فصل‌های شماره ${batch.start} تا ${batch.start + batch.count - 1} را برگردان. دقیقاً ${batch.count} فصل و برای هر فصل دقیقاً ۵ عنوان درس متمایز ارائه کن. فقط JSON معتبر.` }
+        { role: "user" as const, content: `اصلاح خروجی: فقط فصل‌های شماره ${batch.start} تا ${batch.start + batch.count - 1} را برگردان. دقیقاً ${batch.count} فصل و برای هر فصل دقیقاً ۵ عنوان درس متمایز ارائه کن. هیچ عنوانی نباید با فصل‌ها یا درس‌های قبلی یکسان یا هم‌معنا باشد. عنوان‌های قبلی در پیام داده‌شده آمده‌اند؛ آن‌ها را تکرار نکن. فقط JSON معتبر.` }
       ];
       lastResult = await provider.complete({ model, messages: requestMessages, maxTokens, temperature: attempt ? 0.15 : 0.25 });
       try {
@@ -107,7 +107,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
         const segment = parsed.chapters.length === total
           ? parsed.chapters.slice(batch.start - 1, batch.start - 1 + batch.count)
           : parsed.chapters;
-        const checked = validateOutline({ chapters: segment }, course.level, batch.count);
+        const checked = validateOutline({ chapters: segment }, course.level, batch.count, previousChapters);
         return { data: checked, meta: { model: lastResult.model, finishReason: lastResult.finishReason ?? null, usage: lastResult.usage ?? null } };
       } catch (error) {
         if (attempt === 1) {

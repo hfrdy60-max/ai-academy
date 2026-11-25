@@ -128,15 +128,27 @@ async function runTask(task: Task, body: unknown, env: Env) {
       if (res.finishReason === "length") throw new Error("truncated");
       return { data: finish(res.text), meta: { model: res.model, finishReason: res.finishReason ?? null, usage: res.usage ?? null } };
     } catch {
-      // Ask the model to repair its own draft instead of rejecting a nearly complete lesson.
-      const repairMessages = [
-        ...messages,
-        { role: "assistant" as const, content: res.text.slice(0, 26000) },
-        { role: "user" as const, content: `خروجی قبلی این ایرادها را داشت: ${lessonRepairHint(res.text)} متن درس را دقیقاً برای همین عنوان اصلاح کن. همه فیلدهای JSON را کامل نگه دار، هیچ بخش درستی را حذف یا خلاصه نکن و فقط JSON معتبر برگردان.` }
-      ];
-      const repaired = await provider.complete({ model, messages: repairMessages, maxTokens: s.maxTokens, temperature: 0.2 });
-      if (repaired.finishReason === "length") throw new HttpError(502, "ai_output_truncated");
-      return { data: finish(repaired.text), meta: { model: repaired.model, finishReason: repaired.finishReason ?? null, usage: repaired.usage ?? null } };
+      // Some models return a useful but undersized first draft. Repair the exact
+      // missing fields, then allow one final expanded repair before rejecting it.
+      let draft = res;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const repairMessages = [
+          ...messages,
+          { role: "assistant" as const, content: draft.text.slice(0, 26000) },
+          { role: "user" as const, content: `خروجی قبلی این ایرادها را داشت: ${lessonRepairHint(draft.text)} متن درس را دقیقاً برای همین عنوان اصلاح کن. بخش‌های درست را حفظ کن، فقط کمبودها را با آموزش واقعی و مرتبط کامل کن، همه فیلدهای JSON را نگه دار و فقط JSON معتبر برگردان.` }
+        ];
+        const repairMaxTokens = attempt === 0 ? s.maxTokens : Math.min(20000, Math.round(s.maxTokens * 1.25));
+        draft = await provider.complete({ model, messages: repairMessages, maxTokens: repairMaxTokens, temperature: 0.2 });
+        try {
+          if (draft.finishReason === "length") throw new HttpError(502, "ai_output_truncated");
+          return { data: finish(draft.text), meta: { model: draft.model, finishReason: draft.finishReason ?? null, usage: draft.usage ?? null } };
+        } catch (error) {
+          if (attempt === 1) {
+            if (error instanceof HttpError) throw error;
+            throw new HttpError(502, "ai_bad_output");
+          }
+        }
+      }
     }
   }
   return { data: finish(res.text), meta: { model: res.model, finishReason: res.finishReason ?? null, usage: res.usage ?? null } };

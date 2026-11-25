@@ -12,6 +12,8 @@ import { chatMessages, checkMessages, lessonMessages, outlineMessages } from "./
 import { extractJson, lessonQualityIssues, validateChatReply, validateCheck, validateLesson, validateOutline } from "./agents/schemas";
 
 const MAX_BODY_BYTES = 128 * 1024;
+// Stay below the default model's completion-token ceiling, including repair attempts.
+const MAX_LESSON_OUTPUT_TOKENS = 15_000;
 const TASKS: readonly Task[] = ["outline", "lesson", "chat", "check"];
 const SETTINGS: Record<Task, { maxTokens: number; temperature: number }> = {
   outline: { maxTokens: 14000, temperature: 0.25 }, lesson: { maxTokens: 6500, temperature: 0.4 },
@@ -52,7 +54,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
         const bodyObj = body && typeof body === "object" ? body as Record<string, unknown> : {};
         const courseObj = bodyObj.course && typeof bodyObj.course === "object" ? bodyObj.course as Record<string, unknown> : {};
         const courseLevel = courseObj.level;
-        return { maxTokens: courseLevel === "advanced" ? 18000 : courseLevel === "intermediate" ? 13000 : 9000, temperature: SETTINGS.lesson.temperature };
+        return { maxTokens: courseLevel === "advanced" ? MAX_LESSON_OUTPUT_TOKENS : courseLevel === "intermediate" ? 13000 : 9000, temperature: SETTINGS.lesson.temperature };
       })()
     : SETTINGS[task];
   let messages;
@@ -134,7 +136,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
           { role: "assistant" as const, content: draft.text.slice(0, 26000) },
           { role: "user" as const, content: `خروجی قبلی این ایرادها را داشت: ${lessonRepairHint(draft.text)} متن درس را دقیقاً برای همین عنوان اصلاح کن. بخش‌های درست را حفظ کن، فقط کمبودها را با آموزش واقعی و مرتبط کامل کن، همه فیلدهای JSON را نگه دار و فقط JSON معتبر برگردان.` }
         ];
-        const repairMaxTokens = attempt === 0 ? s.maxTokens : Math.min(20000, Math.round(s.maxTokens * 1.25));
+        const repairMaxTokens = attempt === 0 ? s.maxTokens : Math.min(MAX_LESSON_OUTPUT_TOKENS, Math.round(s.maxTokens * 1.25));
         draft = await provider.complete({ model, messages: repairMessages, maxTokens: repairMaxTokens, temperature: 0.2 });
         try {
           if (draft.finishReason === "length") throw new HttpError(502, "ai_output_truncated");

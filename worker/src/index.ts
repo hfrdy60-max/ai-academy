@@ -88,7 +88,7 @@ async function runTask(task: Task, body: unknown, env: Env) {
   }
   let res;
   if (task === "outline") {
-    const { course, range } = outlineRequest!;
+    const { course, range, previousChapters } = outlineRequest!;
     const total = course.level === "advanced" ? 20 : course.level === "intermediate" ? 10 : 5;
     const batch = range ?? { start: 1, count: total };
     const maxTokens = batch.count * 1800;
